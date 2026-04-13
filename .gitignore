@@ -11,3 +11,4 @@ data/*.db
 *.xlsx
 .idea/
 .vscode/
+logs/*.log
