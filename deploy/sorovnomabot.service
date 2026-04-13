@@ -1,0 +1,16 @@
+[Unit]
+Description=Sorovnoma Telegram Bot (aiogram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/sorovnomabot
+EnvironmentFile=/opt/sorovnomabot/.env
+ExecStart=/opt/sorovnomabot/.venv/bin/python /opt/sorovnomabot/bot.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

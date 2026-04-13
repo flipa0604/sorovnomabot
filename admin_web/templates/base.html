@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}So'rovnoma admin{% endblock %}</title>
+  <style>
+    :root { --bg: #0f1419; --card: #1a2332; --text: #e7ecf3; --muted: #8b9cb3; --accent: #3d8bfd; --danger: #e85d6f; --ok: #3ecf8e; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
+    a { color: var(--accent); }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 1.25rem; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    h1 { font-size: 1.35rem; margin: 0; font-weight: 600; }
+    .card { background: var(--card); border-radius: 10px; padding: 1.25rem; margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input, select, textarea { width: 100%; padding: 0.55rem 0.65rem; border-radius: 6px; border: 1px solid #2d3a4f; background: #121a26; color: var(--text); }
+    .row { margin-bottom: 1rem; }
+    .btn { display: inline-block; padding: 0.5rem 1rem; border-radius: 6px; border: none; cursor: pointer; font-size: 0.95rem; text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid #2d3a4f; }
+    .err { color: var(--danger); font-size: 0.9rem; margin-top: 0.5rem; }
+    .ok { color: var(--ok); padding: 0.65rem; background: rgba(62,207,142,0.12); border-radius: 6px; margin-bottom: 1rem; }
+    .warn { color: var(--danger); padding: 0.65rem; background: rgba(232,93,111,0.12); border-radius: 6px; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.55rem 0.4rem; border-bottom: 1px solid #2d3a4f; }
+    th { color: var(--muted); font-weight: 500; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .actions { white-space: nowrap; }
+    .actions a { margin-right: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    {% block body %}{% endblock %}
+  </div>
+</body>
+</html>

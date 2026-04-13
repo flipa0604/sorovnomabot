@@ -1,0 +1,13 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.db
+data/*.db
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.xlsx
+.idea/
+.vscode/

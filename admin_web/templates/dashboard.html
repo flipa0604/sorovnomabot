@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Bosh sahifa — admin{% endblock %}
+{% block body %}
+<header>
+  <h1>So'rovnoma — Buxoro viloyati</h1>
+  <div>
+    <a href="/logout" class="btn btn-ghost">Chiqish</a>
+  </div>
+</header>
+{% if flash %}<div class="ok">{{ flash }}</div>{% endif %}
+{% if flash_err %}<div class="warn">{{ flash_err }}</div>{% endif %}
+<div class="card">
+  <p style="margin-top:0;">Jami berilgan ovozlar: <strong>{{ total_votes }}</strong></p>
+  <p style="color: var(--muted); font-size: 0.9rem;">Har bir qatorda — direktor, maktab, tuman va yig'ilgan ovozlar soni.</p>
+  {% if rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>Direktor</th>
+        <th>Maktab</th>
+        <th>Tuman</th>
+        <th class="num">Ovozlar</th>
+        <th class="actions"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d, cnt in rows %}
+      <tr>
+        <td>{{ d.full_name }}</td>
+        <td>{{ d.school_name }}</td>
+        <td>{{ d.district.name if d.district else '—' }}</td>
+        <td class="num"><strong>{{ cnt }}</strong></td>
+        <td class="actions"><a href="/directors/{{ d.id }}/edit">Tahrirlash</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--muted);">Hali maktab / direktor qo'shilmagan.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h2 style="margin-top:0; font-size:1.1rem;">Tumanlar</h2>
+  {% if districts %}
+  <ul style="margin:0; padding-left:1.2rem; color: var(--muted);">
+    {% for x in districts %}
+    <li style="margin-bottom:0.35rem;">
+      {{ x.name }} <small>({{ x.code }})</small> —
+      <a href="/districts/{{ x.id }}/edit">tahrir</a>
+      <form method="post" action="/districts/{{ x.id }}/delete" style="display:inline;" onsubmit="return confirm('Tumni o\'chirish? Faqat ichida maktab bo\'lmasa.');">
+        <button type="submit" class="btn btn-danger" style="padding:0.15rem 0.5rem; font-size:0.8rem; margin-left:0.35rem;">O'chirish</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p style="color: var(--muted);">Tumanlar yo'q.</p>
+  {% endif %}
+  <p style="margin-bottom:0;"><a href="/districts/new" class="btn btn-primary">Tuman qo'shish</a></p>
+</div>
+<p><a href="/directors/new" class="btn btn-primary">Maktab + direktor qo'shish</a></p>
+{% endblock %}

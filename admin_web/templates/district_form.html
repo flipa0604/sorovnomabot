@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{% if district %}Tumni tahrirlash{% else %}Yangi tuman{% endif %}{% endblock %}
+{% block body %}
+<header>
+  <h1>{% if district %}Tumni tahrirlash{% else %}Yangi tuman{% endif %}</h1>
+  <a href="/" class="btn btn-ghost">Orqaga</a>
+</header>
+<div class="card">
+  {% if error %}<div class="warn">{{ error }}</div>{% endif %}
+  <form method="post" action="{% if district %}/districts/{{ district.id }}/edit{% else %}/districts/new{% endif %}">
+    <div class="row">
+      <label>Tuman nomi</label>
+      <input name="name" required value="{{ district.name if district else '' }}">
+    </div>
+    <div class="row">
+      <label>Tizim kodi (lotin, noyob)</label>
+      <input name="code" required value="{{ district.code if district else '' }}" placeholder="masalan: romitan">
+      <small style="color: var(--muted);">CSV import va ichki identifikator uchun.</small>
+    </div>
+    <div class="row">
+      <label>Tartib raqami</label>
+      <input name="sort_order" type="number" value="{{ district.sort_order if district else 0 }}">
+    </div>
+    <button type="submit" class="btn btn-primary">Saqlash</button>
+  </form>
+</div>
+{% endblock %}

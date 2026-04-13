@@ -1,0 +1,8 @@
+# Standart: SQLite (data/bot.db papkaga mount)
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
