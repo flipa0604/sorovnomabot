@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-@app.get("/login", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse, response_model=None)
 async def login_page(request: Request) -> HTMLResponse:
     if _admin_session_ok(request):
         return RedirectResponse("/", status_code=302)
@@ -103,7 +103,7 @@ async def login_page(request: Request) -> HTMLResponse:
     )
 
 
-@app.post("/login")
+@app.post("/login", response_model=None)
 async def login_post(
     request: Request,
     username: str = Form(),
@@ -118,13 +118,13 @@ async def login_post(
     return RedirectResponse("/login?err=1", status_code=302)
 
 
-@app.get("/logout")
+@app.get("/logout", response_model=None)
 async def logout(request: Request) -> RedirectResponse:
     request.session.clear()
     return RedirectResponse("/login", status_code=302)
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse, response_model=None)
 async def dashboard(request: Request, session: SessionDep) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
@@ -164,14 +164,14 @@ async def dashboard(request: Request, session: SessionDep) -> HTMLResponse:
     )
 
 
-@app.get("/districts/new", response_class=HTMLResponse)
+@app.get("/districts/new", response_class=HTMLResponse, response_model=None)
 async def district_new_form(request: Request) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse("district_form.html", {"request": request, "district": None, "error": None})
 
 
-@app.post("/districts/new")
+@app.post("/districts/new", response_model=None)
 async def district_new(
     request: Request,
     session: SessionDep,
@@ -199,7 +199,7 @@ async def district_new(
     return RedirectResponse("/?msg=district_added", status_code=302)
 
 
-@app.get("/districts/{district_id}/edit", response_class=HTMLResponse)
+@app.get("/districts/{district_id}/edit", response_class=HTMLResponse, response_model=None)
 async def district_edit_form(request: Request, session: SessionDep, district_id: int) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
@@ -212,7 +212,7 @@ async def district_edit_form(request: Request, session: SessionDep, district_id:
     )
 
 
-@app.post("/districts/{district_id}/edit")
+@app.post("/districts/{district_id}/edit", response_model=None)
 async def district_edit(
     request: Request,
     session: SessionDep,
@@ -241,7 +241,7 @@ async def district_edit(
     return RedirectResponse("/?msg=district_saved", status_code=302)
 
 
-@app.post("/districts/{district_id}/delete")
+@app.post("/districts/{district_id}/delete", response_model=None)
 async def district_delete(
     request: Request,
     session: SessionDep,
@@ -255,7 +255,7 @@ async def district_delete(
     return RedirectResponse("/?err=district_has_schools", status_code=302)
 
 
-@app.get("/directors/new", response_class=HTMLResponse)
+@app.get("/directors/new", response_class=HTMLResponse, response_model=None)
 async def director_new_form(request: Request, session: SessionDep) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
@@ -272,7 +272,7 @@ async def director_new_form(request: Request, session: SessionDep) -> HTMLRespon
     )
 
 
-@app.post("/directors/new")
+@app.post("/directors/new", response_model=None)
 async def director_new(
     request: Request,
     session: SessionDep,
@@ -301,7 +301,7 @@ async def director_new(
     return RedirectResponse("/?msg=director_added", status_code=302)
 
 
-@app.get("/directors/{director_id}/edit", response_class=HTMLResponse)
+@app.get("/directors/{director_id}/edit", response_class=HTMLResponse, response_model=None)
 async def director_edit_form(request: Request, session: SessionDep, director_id: int) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
@@ -316,7 +316,7 @@ async def director_edit_form(request: Request, session: SessionDep, director_id:
     )
 
 
-@app.post("/directors/{director_id}/edit")
+@app.post("/directors/{director_id}/edit", response_model=None)
 async def director_edit(
     request: Request,
     session: SessionDep,
@@ -355,7 +355,7 @@ async def director_edit(
     return RedirectResponse("/?msg=director_saved", status_code=302)
 
 
-@app.post("/directors/{director_id}/delete")
+@app.post("/directors/{director_id}/delete", response_model=None)
 async def director_delete(request: Request, session: SessionDep, director_id: int) -> RedirectResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
