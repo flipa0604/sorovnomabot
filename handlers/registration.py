@@ -120,28 +120,13 @@ async def cmd_start(
     ch = get_settings().required_channel_id
     link = ch if ch.startswith("@") else ch
     pretty = ch if ch.startswith("@") else f"kanal ({ch})"
+
+    from utils.keyboards import channel_keyboard
     await message.answer(
         f"So'rovnomada ishtirok etish uchun avval {pretty} kanaliga a'zo bo'ling.\n"
         "Keyin «A'zolikni tekshirish» tugmasini bosing.",
-        reply_markup=None,
-    )
-    from utils.keyboards import channel_keyboard
-
-    await message.answer(
-        "Kanalga o'tish:",
         reply_markup=channel_keyboard(link if link.startswith("@") else get_settings().required_channel_id),
     )
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-    await message.answer(
-        "A'zo bo'ldingizmi?",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")]
-            ]
-        ),
-    )
-
 
 @router.callback_query(F.data == "sub:check")
 async def callback_check_subscription(
