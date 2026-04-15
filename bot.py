@@ -6,6 +6,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.strategy import FSMStrategy
 
 from config import get_settings
 from database.seed import seed_directors_from_csv_if_empty, seed_districts_if_empty
@@ -45,7 +46,9 @@ async def main() -> None:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    dp = Dispatcher(storage=MemoryStorage())
+    # GLOBAL_USER: tuman filtri shaxsiy chatda saqlanadi, @bot qidiruv esa boshqa chatda —
+    # USER_IN_CHAT bo'lsa FSM kaliti mos kelmaydi va direktorlar chiqmay qolardi.
+    dp = Dispatcher(storage=MemoryStorage(), fsm_strategy=FSMStrategy.GLOBAL_USER)
     dp.update.middleware(DbSessionMiddleware())
 
     dp.include_router(setup_routers())

@@ -21,6 +21,19 @@ router = Router(name="voting")
 DIST_PREFIX = re.compile(r"^dist:(?P<id>.+)$")
 
 
+def _district_id_from_fsm(data: dict) -> int | None:
+    """FSM dan tuman id; saqlash/serilizatsiya ba'zan str qaytarishi mumkin."""
+    raw = data.get("district_id")
+    if raw is None:
+        return None
+    if isinstance(raw, int):
+        return raw
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 @router.callback_query(Voting.active, F.data.startswith("dist:"))
 async def set_district_filter(
     query: CallbackQuery,
@@ -82,7 +95,7 @@ async def inline_search_directors(
         return
 
     data = await state.get_data()
-    district_id: int | None = data.get("district_id")
+    district_id = _district_id_from_fsm(data)
     q = inline_query.query or ""
     directors = await repo.search_directors(session, q, district_id, limit=50)
 
