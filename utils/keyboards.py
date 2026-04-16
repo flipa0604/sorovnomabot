@@ -38,7 +38,10 @@ def channel_keyboard(channel_username: str) -> InlineKeyboardMarkup:
     """channel_username @ bilan yoki https"""
     link = channel_username if channel_username.startswith("http") else f"https://t.me/{channel_username.lstrip('@')}"
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="📢 Kanalga o'tish", url=link)]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Kanalga o'tish", url=link)]
+            [InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")]
+        ],
     )
 
 
