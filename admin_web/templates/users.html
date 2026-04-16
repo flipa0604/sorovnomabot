@@ -1,0 +1,128 @@
+{% extends "layout.html" %}
+{% block title %}Foydalanuvchilar — admin{% endblock %}
+{% block inner %}
+<div class="page-head">
+  <div>
+    <h1>Telegram foydalanuvchilar</h1>
+    <p>Ro'yxatdan o'tish, ovoz holati; qidiruv, holat va <b>ovoz berilgan direktor</b> bo'yicha filtr.</p>
+  </div>
+</div>
+
+<div class="card">
+  {% if filter_director %}
+  <p style="color:var(--muted);font-size:0.9rem;margin:0 0 1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+    <strong>Ovoz filtri:</strong>
+    {% if filter_director.district %}{{ filter_director.district.name }}{% else %}—{% endif %}
+    — {{ filter_director.school_name }} — <strong>{{ filter_director.full_name }}</strong>
+    · <a href="/users">Filtrni olib tashlash</a>
+  </p>
+  {% endif %}
+  <form class="toolbar" method="get" action="/users">
+    <div class="field-grow">
+      <label>Qidiruv</label>
+      <input type="search" name="q" value="{{ q }}" placeholder="ID, @username, ism, telefon...">
+    </div>
+    <div class="field" style="max-width:220px;">
+      <label>Holat</label>
+      <select name="status">
+        <option value="all" {% if status == 'all' %}selected{% endif %}>Barchasi</option>
+        <option value="complete" {% if status == 'complete' %}selected{% endif %}>To'liq ro'yxat</option>
+        <option value="voted" {% if status == 'voted' %}selected{% endif %}>Ovoz bergan</option>
+        <option value="no_vote" {% if status == 'no_vote' %}selected{% endif %}>Ovoz kutmokda</option>
+        <option value="incomplete" {% if status == 'incomplete' %}selected{% endif %}>Jarayonda</option>
+      </select>
+    </div>
+    <div class="field field-grow" style="min-width:200px;max-width:380px;">
+      <label>Ovoz direktori</label>
+      <select name="director_id">
+        <option value="">— Hammasi —</option>
+        {% for d in director_choices %}
+        <option value="{{ d.id }}" {% if director_id == d.id %}selected{% endif %}>
+          {% if d.district %}{{ d.district.name }} — {% endif %}{{ d.school_name }} ({{ d.full_name }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input type="hidden" name="order" value="{{ order }}">
+    <div class="field" style="max-width:120px;">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Qo'llash</button>
+    </div>
+  </form>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>
+            <a class="sort-link" href="/users?{{ sort_urls['telegram_id'] }}">Telegram ID</a>
+          </th>
+          <th>
+            <a class="sort-link" href="/users?{{ sort_urls['username'] }}">Username</a>
+          </th>
+          <th>
+            <a class="sort-link" href="/users?{{ sort_urls['full_name'] }}">Ism</a>
+          </th>
+          <th>Telefon</th>
+          <th>Kanal</th>
+          <th>IG</th>
+          <th>
+            <a class="sort-link" href="/users?{{ sort_urls['created_at'] }}">Ro'yxatdan</a>
+          </th>
+          <th>Holat</th>
+          <th>Ovoz</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="mono">{{ u.telegram_id }}</td>
+          <td>{% if u.username %}<a href='https://t.me/{{ u.username }}' target='_blank'>@{{ u.username }}</a>{% else %}—{% endif %}</td>
+          <td>{{ u.full_name or '—' }}</td>
+          <td class="">{% if u.phone_normalized %} <a href='https://t.me/+{{ u.phone_normalized }}' target='_blank'> +{{ u.phone_normalized }} </a>{% else %}—{% endif %}</td>
+          <td>{% if u.channel_ok %}<span class="badge badge-ok">Ha</span>{% else %}<span class="badge badge-muted">Yo'q</span>{% endif %}</td>
+          <td>{% if u.instagram_ok %}<span class="badge badge-ok">Ha</span>{% else %}<span class="badge badge-muted">Yo'q</span>{% endif %}</td>
+          <td class="mono" style="font-size:0.82em;">{% if u.created_at %}{{ u.created_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}</td>
+          <td>
+            {% if u.channel_ok and u.instagram_ok and u.phone_normalized %}
+              {% if u.vote %}
+                <span class="badge badge-accent">Ovoz bergan</span>
+              {% else %}
+                <span class="badge badge-warn">Ovoz kutmoqda</span>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-muted">Jarayonda</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.vote and u.vote.director %}
+            <strong>{{ u.vote.director.full_name }}</strong><br>
+            <span style="color:var(--muted);font-size:0.8rem;">
+              {% if u.vote.director.district %}<b>{{ u.vote.director.district.name }}</b> · {% endif %}{{ u.vote.director.school_name }}
+            </span>
+            {% elif u.vote %}
+              #{{ u.vote.director_id }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" style="color:var(--muted);">Natija yo'q.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination">
+    {% if page > 0 %}
+    <a href="/users?{{ page_prev_qs }}">← Oldingi</a>
+    {% endif %}
+    <span>Sahifa {{ page + 1 }} / {{ total_pages }} ({{ total }} qator)</span>
+    {% if page < total_pages - 1 %}
+    <a href="/users?{{ page_next_qs }}">Keyingi →</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

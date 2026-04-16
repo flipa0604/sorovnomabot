@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}Tumanlar — admin{% endblock %}
+{% block inner %}
+<div class="page-head">
+  <div>
+    <h1>Tumanlar</h1>
+    <p>Har bir tumanda maktablar soni; tuman ichiga kirib maktab va direktorlarni ko'rish.</p>
+  </div>
+  <a href="/districts/new" class="btn btn-primary">Tuman qo'shish</a>
+</div>
+
+<div class="district-grid">
+  {% for d, n in district_rows %}
+  <div class="district-card">
+    <h3>{{ d.name }}</h3>
+    <div class="meta">Kod: <code>{{ d.code }}</code> · tartib: {{ d.sort_order }}</div>
+    <div style="font-size:0.9rem;margin-bottom:0.75rem;"><strong>{{ n }}</strong> ta maktab</div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+      <a class="btn btn-primary btn-sm" href="/districts/{{ d.id }}">Maktablar</a>
+      <a class="btn btn-ghost btn-sm" href="/districts/{{ d.id }}/edit">Tahrirlash</a>
+      <form method="post" action="/districts/{{ d.id }}/delete" style="display:inline;" onsubmit="return confirm('Tumni o\'chirish? Ichida maktab bo\'lmasa.');">
+        <button type="submit" class="btn btn-danger btn-sm">O'chirish</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p style="color:var(--muted);">Tumanlar yo'q.</p>
+  {% endfor %}
+</div>
+{% endblock %}

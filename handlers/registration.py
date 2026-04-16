@@ -4,11 +4,14 @@ from aiogram import Bot, F, Router
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
+from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Contact, Message, ReplyKeyboardRemove
 
 from config import get_settings
 from database import repositories as repo
+from handlers.voting import offer_vote_from_start_payload
+from utils.deeplink import parse_director_start_payload
 from utils.keyboards import contact_keyboard, district_filter_keyboard, instagram_confirm_keyboard
 from utils.phone import normalize_phone
 from utils.states import Registration, Voting
@@ -52,11 +55,15 @@ async def enter_voting_stage(
         return
     await message.answer(
         "Ovoz berish boshlandi.\n\n"
-        "1) Pastdagi tugmalar orqali tumanni tanlang (ixtiyoriy — qidiruvni cheklash uchun).\n"
-        f"2) Keyin har qanday chatda <b>@{uname}</b> yozib qidiruv oching va "
-        "direktorning ism-familiyasi bo'yicha tanlang.\n\n"
-        "Eslatma: bitta telefon — bitta ovoz. So'rovnoma faqat Buxoro viloyati tumanlarida o'tkaziladi.",
+        "1) Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n"
+        "2) Ro'yxatdan maktabni tanlang (20 tadan sahifalanadi), batafsilda "
+        "<b>Ovoz berish</b> yoki boshqa chatga <b>Ulashish</b> (inline qidiruv).\n\n"
+        f"Maktab kartasini boshqa joyga yuborish: chatda <code>@{uname} d</code> + direktor ID "
+        "(masalan <code>@{uname} d12</code>).\n\n"
+        "Eslatma: har bir akkaunt uchun bitta ovoz saqlanadi; istalgan vaqtda boshqa direktorga "
+        "<code>/start</code> yoki bot menyusidan o'zgartirishingiz mumkin. So'rovnoma Buxoro viloyati bo'yicha.",
         reply_markup=district_filter_keyboard(districts),
+        parse_mode="HTML",
     )
 
 
@@ -65,7 +72,7 @@ async def cmd_help(message: Message) -> None:
     await message.answer(
         "Bu bot maktab direktorlari o'rtasida so'rovnoma o'tkazish uchun mo'ljallangan.\n\n"
         "Jarayon: kanalga a'zolik → Instagram sahifasi → telefon → ovoz.\n"
-        "Ovoz berish: tuman tanlang (ixtiyoriy), so'ng chatda botni @username orqali qidiring.\n\n"
+        "Ovoz berish: tuman tanlang, ro'yxatdan maktabni tanlang; ulashish uchun inline rejim.\n\n"
         "Boshlash: /start"
     )
 
@@ -73,6 +80,7 @@ async def cmd_help(message: Message) -> None:
 @router.message(CommandStart())
 async def cmd_start(
     message: Message,
+    command: CommandObject,
     session,
     state: FSMContext,
     bot: Bot,
@@ -85,17 +93,14 @@ async def cmd_start(
         message.from_user.full_name,
     )
 
-    if await repo.has_voted_by_telegram(session, uid):
-        await state.clear()
-        await message.answer(
-            "Siz ushbu so'rovnomada allaqachon ishtirok etgansiz. "
-            "Har bir foydalanuvchi va telefon raqami bo'yicha faqat bitta ovoz beriladi."
-        )
-        return
+    director_id = parse_director_start_payload(command.args)
 
     if await user_is_channel_member(bot, uid):
         await repo.set_user_flags(session, uid, channel_ok=True)
         u = await repo.get_user(session, uid)
+        if director_id is not None and u and u.instagram_ok and u.phone_normalized:
+            await offer_vote_from_start_payload(message, session, state, director_id)
+            return
         if u and u.instagram_ok and u.phone_normalized:
             await enter_voting_stage(message, session, state, uid, bot)
             return
@@ -180,14 +185,6 @@ async def on_contact(
     phone = normalize_phone(contact.phone_number or "")
     if len(phone) < 12:
         await message.answer("Telefon raqam noto'g'ri. Qaytadan yuboring.")
-        return
-
-    if await repo.has_voted_by_phone(session, phone):
-        await state.clear()
-        await message.answer(
-            "Bu telefon raqami bilan allaqachon ovoz qabul qilingan.",
-            reply_markup=ReplyKeyboardRemove(),
-        )
         return
 
     uid = message.from_user.id

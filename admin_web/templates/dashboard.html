@@ -1,62 +1,158 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 {% block title %}Bosh sahifa — admin{% endblock %}
-{% block body %}
-<header>
-  <h1>So'rovnoma — Buxoro viloyati</h1>
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block inner %}
+<div class="page-head">
   <div>
-    <a href="/logout" class="btn btn-ghost">Chiqish</a>
+    <h1>Boshqaruv paneli</h1>
+    <p>So'rovnoma bo'yicha tezkor statistika, TOP direktorlar va oxirgi 7 kun dinamikasi.</p>
   </div>
-</header>
-{% if flash %}<div class="ok">{{ flash }}</div>{% endif %}
-{% if flash_err %}<div class="warn">{{ flash_err }}</div>{% endif %}
-<div class="card">
-  <p style="margin-top:0;">Jami berilgan ovozlar: <strong>{{ total_votes }}</strong></p>
-  <p style="color: var(--muted); font-size: 0.9rem;">Har bir qatorda — direktor, maktab, tuman va yig'ilgan ovozlar soni.</p>
-  {% if rows %}
-  <table>
-    <thead>
-      <tr>
-        <th>Direktor</th>
-        <th>Maktab</th>
-        <th>Tuman</th>
-        <th class="num">Ovozlar</th>
-        <th class="actions"></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d, cnt in rows %}
-      <tr>
-        <td>{{ d.full_name }}</td>
-        <td>{{ d.school_name }}</td>
-        <td>{{ d.district.name if d.district else '—' }}</td>
-        <td class="num"><strong>{{ cnt }}</strong></td>
-        <td class="actions"><a href="/directors/{{ d.id }}/edit">Tahrirlash</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p style="color: var(--muted);">Hali maktab / direktor qo'shilmagan.</p>
-  {% endif %}
 </div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="label">Jami foydalanuvchilar</div>
+    <div class="value">{{ dash.total_users }}</div>
+    <div class="hint">Ro'yxatdan boshlaganlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Jami ovozlar</div>
+    <div class="value">{{ dash.total_votes }}</div>
+    <div class="hint">Qabul qilingan ovozlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">To'liq ro'yxat</div>
+    <div class="value">{{ dash.users_complete }}</div>
+    <div class="hint">Kanal + IG + telefon</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Ovoz bergan</div>
+    <div class="value">{{ dash.users_voted }}</div>
+    <div class="hint">Ovoz bergan akkauntlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Ovoz kutmoqda</div>
+    <div class="value">{{ dash.users_no_vote }}</div>
+    <div class="hint">To'liq ro'yxat, ovoz yo'q</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Jarayonda</div>
+    <div class="value">{{ dash.users_incomplete }}</div>
+    <div class="hint">Qadam tugallanmagan</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi 24 soatdagi foydalanuvchilar</div>
+    <div class="value">{{ dash.users_24h }}</div>
+    <div class="hint">Yangi qo'shilishlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi 7 kunda foydalanuvchilar</div>
+    <div class="value">{{ dash.users_7d }}</div>
+    <div class="hint">Yangi qo'shilishlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi oydagi foydalanuvchilar</div>
+    <div class="value">{{ dash.users_30d }}</div>
+    <div class="hint">Yangi qo'shilishlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi 24 soatdagi ovozlar</div>
+    <div class="value">{{ dash.votes_24h }}</div>
+    <div class="hint">Yangi ovozlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi 7 kundagi ovozlar</div>
+    <div class="value">{{ dash.votes_7d }}</div>
+    <div class="hint">Yangi ovozlar</div>
+  </div>
+  <div class="kpi">
+    <div class="label">Oxirgi oydagi ovozlar</div>
+    <div class="value">{{ dash.votes_30d }}</div>
+    <div class="hint">Yangi ovozlar</div>
+  </div>
+</div>
+
+<div class="charts-row">
+  <div class="card">
+    <h2>Yangi foydalanuvchilar (7 kun)</h2>
+    <div class="chart-box"><canvas id="chartUsers"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Yangi ovozlar (7 kun)</h2>
+    <div class="chart-box"><canvas id="chartVotes"></canvas></div>
+  </div>
+</div>
+
 <div class="card">
-  <h2 style="margin-top:0; font-size:1.1rem;">Tumanlar</h2>
-  {% if districts %}
-  <ul style="margin:0; padding-left:1.2rem; color: var(--muted);">
-    {% for x in districts %}
-    <li style="margin-bottom:0.35rem;">
-      {{ x.name }} <small>({{ x.code }})</small> —
-      <a href="/districts/{{ x.id }}/edit">tahrir</a>
-      <form method="post" action="/districts/{{ x.id }}/delete" style="display:inline;" onsubmit="return confirm('Tumni o\'chirish? Faqat ichida maktab bo\'lmasa.');">
-        <button type="submit" class="btn btn-danger" style="padding:0.15rem 0.5rem; font-size:0.8rem; margin-left:0.35rem;">O'chirish</button>
-      </form>
+  <h2>TOP 10 — ovozlar soni bo'yicha direktorlar</h2>
+  {% if dash.top_directors %}
+  <ol class="top-list">
+    {% for d, cnt in dash.top_directors %}
+    <li>
+      <span class="top-rank">{{ loop.index }}</span>
+      <div>
+        <strong>{{ d.full_name }}</strong><br>
+        <span style="color:var(--muted);font-size:0.85rem;">{{ d.school_name }} · {{ d.district.name if d.district else '—' }}</span>
+      </div>
+      <span class="top-votes">{{ cnt }}</span>
     </li>
     {% endfor %}
-  </ul>
+  </ol>
   {% else %}
-  <p style="color: var(--muted);">Tumanlar yo'q.</p>
+  <p style="color:var(--muted);margin:0;">Hali ovoz berilmagan yoki ma'lumot yo'q.</p>
   {% endif %}
-  <p style="margin-bottom:0;"><a href="/districts/new" class="btn btn-primary">Tuman qo'shish</a></p>
 </div>
-<p><a href="/directors/new" class="btn btn-primary">Maktab + direktor qo'shish</a></p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const labels = {{ chart_labels_json|safe }};
+  const usersData = {{ chart_users_json|safe }};
+  const votesData = {{ chart_votes_json|safe }};
+  const common = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b98a8', maxRotation: 45 } },
+      y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b98a8' } }
+    }
+  };
+  new Chart(document.getElementById('chartUsers'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Foydalanuvchilar',
+        data: usersData,
+        borderColor: '#4d9fff',
+        backgroundColor: 'rgba(77,159,255,0.12)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 4,
+        pointBackgroundColor: '#4d9fff'
+      }]
+    },
+    options: common
+  });
+  new Chart(document.getElementById('chartVotes'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Ovozlar',
+        data: votesData,
+        borderColor: '#34d399',
+        backgroundColor: 'rgba(52,211,153,0.12)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 4,
+        pointBackgroundColor: '#34d399'
+      }]
+    },
+    options: common
+  });
+</script>
 {% endblock %}

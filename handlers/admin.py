@@ -54,7 +54,7 @@ async def cmd_export(message: Message, session) -> None:
                 "telegram_id": v.user_telegram_id,
                 "username": u.username if u else "",
                 "tg_full_name": u.full_name if u else "",
-                "phone_normalized": v.phone_normalized,
+                "phone_normalized": u.phone_normalized if u else "",
                 "director_id": d.id if d else "",
                 "director_name": d.full_name if d else "",
                 "district": d.district.name if d and d.district else "",

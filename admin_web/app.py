@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
@@ -45,6 +47,92 @@ def _parse_sort_order(raw: str) -> int:
 
 def _admin_session_ok(request: Request) -> bool:
     return bool(request.session.get("admin"))
+
+
+def _flash_from_query(request: Request) -> tuple[str | None, str | None]:
+    msg = request.query_params.get("msg")
+    err = request.query_params.get("err")
+    flash_map = {
+        "district_added": "Tuman qo'shildi.",
+        "district_saved": "Tuman saqlandi.",
+        "district_deleted": "Tuman o'chirildi.",
+        "director_added": "Maktab / direktor qo'shildi.",
+        "director_saved": "Ma'lumotlar saqlandi.",
+        "director_deleted": "Qator o'chirildi.",
+    }
+    err_map = {
+        "district_has_schools": "Tumanda maktablar bor — avval ularni o'chiring yoki ko'chiring.",
+        "director_has_votes": "Ovoz yig'gan direktorni o'chirib bo'lmaydi.",
+    }
+    return flash_map.get(msg or ""), err_map.get(err or "")
+
+
+def _directors_qs_parts(
+    q: str,
+    district_id: int | None,
+    sort: str,
+    order: str,
+    page: int,
+) -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
+    if q.strip():
+        items.append(("q", q.strip()))
+    if district_id is not None:
+        items.append(("district_id", str(district_id)))
+    items.extend(
+        [
+            ("sort", sort),
+            ("order", order),
+            ("page", str(page)),
+        ]
+    )
+    return items
+
+
+def _directors_sort_urls(
+    q: str,
+    district_id: int | None,
+    sort: str,
+    order: str,
+) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for col in ("school_name", "full_name", "district", "sort_order", "vote_count"):
+        next_o = "asc" if (sort == col and order == "desc") else "desc"
+        out[col] = urlencode(_directors_qs_parts(q, district_id, col, next_o, 0))
+    return out
+
+
+def _users_qs_parts(
+    q: str,
+    status: str,
+    sort: str,
+    order: str,
+    page: int,
+    director_id: int | None = None,
+) -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
+    if q.strip():
+        items.append(("q", q.strip()))
+    if status and status != "all":
+        items.append(("status", status))
+    if director_id is not None:
+        items.append(("director_id", str(director_id)))
+    items.extend([("sort", sort), ("order", order), ("page", str(page))])
+    return items
+
+
+def _users_sort_urls(
+    q: str,
+    status: str,
+    sort: str,
+    order: str,
+    director_id: int | None = None,
+) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for col in ("telegram_id", "username", "full_name", "created_at"):
+        next_o = "asc" if (sort == col and order == "desc") else "desc"
+        out[col] = urlencode(_users_qs_parts(q, status, col, next_o, 0, director_id))
+    return out
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -128,36 +216,64 @@ async def logout(request: Request) -> RedirectResponse:
 async def dashboard(request: Request, session: SessionDep) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
-    rows = await repo.directors_with_vote_counts(session)
-    districts = await repo.list_districts(session)
-    total_votes = sum(c for _, c in rows)
-    msg = request.query_params.get("msg")
-    err = request.query_params.get("err")
-    flash = None
-    flash_err = None
-    if msg == "district_added":
-        flash = "Tuman qo'shildi."
-    elif msg == "district_saved":
-        flash = "Tuman saqlandi."
-    elif msg == "district_deleted":
-        flash = "Tuman o'chirildi."
-    elif msg == "director_added":
-        flash = "Direktor / maktab qo'shildi."
-    elif msg == "director_saved":
-        flash = "Ma'lumotlar saqlandi."
-    elif msg == "director_deleted":
-        flash = "Qator o'chirildi."
-    if err == "district_has_schools":
-        flash_err = "Tumanda maktablar bor — avval ularni o'chiring yoki ko'chiring."
-    elif err == "director_has_votes":
-        flash_err = "Ovoz yig'gan direktorni o'chirib bo'lmaydi."
+    dash = await repo.admin_dashboard_bundle(session)
+    labels = [d.strftime("%d.%m.%Y") for d, _ in dash["chart_users"]]
+    users_vals = [v for _, v in dash["chart_users"]]
+    votes_vals = [v for _, v in dash["chart_votes"]]
+    flash, flash_err = _flash_from_query(request)
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
+            "nav": "dashboard",
+            "dash": dash,
+            "chart_labels_json": json.dumps(labels),
+            "chart_users_json": json.dumps(users_vals),
+            "chart_votes_json": json.dumps(votes_vals),
+            "flash": flash,
+            "flash_err": flash_err,
+        },
+    )
+
+
+@app.get("/districts", response_class=HTMLResponse, response_model=None)
+async def districts_page(request: Request, session: SessionDep) -> HTMLResponse:
+    if not _admin_session_ok(request):
+        return RedirectResponse("/login", status_code=302)
+    district_rows = await repo.admin_districts_with_school_counts(session)
+    flash, flash_err = _flash_from_query(request)
+    return templates.TemplateResponse(
+        "districts.html",
+        {
+            "request": request,
+            "nav": "districts",
+            "district_rows": district_rows,
+            "flash": flash,
+            "flash_err": flash_err,
+        },
+    )
+
+
+@app.get("/districts/{district_id}", response_class=HTMLResponse, response_model=None)
+async def district_detail_page(
+    request: Request,
+    session: SessionDep,
+    district_id: int,
+) -> HTMLResponse:
+    if not _admin_session_ok(request):
+        return RedirectResponse("/login", status_code=302)
+    d = await repo.get_district(session, district_id)
+    if not d:
+        raise HTTPException(404)
+    rows = await repo.admin_list_directors_in_district(session, district_id)
+    flash, flash_err = _flash_from_query(request)
+    return templates.TemplateResponse(
+        "district_detail.html",
+        {
+            "request": request,
+            "nav": "districts",
+            "district": d,
             "rows": rows,
-            "districts": districts,
-            "total_votes": total_votes,
             "flash": flash,
             "flash_err": flash_err,
         },
@@ -168,7 +284,10 @@ async def dashboard(request: Request, session: SessionDep) -> HTMLResponse:
 async def district_new_form(request: Request) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
-    return templates.TemplateResponse("district_form.html", {"request": request, "district": None, "error": None})
+    return templates.TemplateResponse(
+        "district_form.html",
+        {"request": request, "nav": "districts", "district": None, "error": None, "flash": None, "flash_err": None},
+    )
 
 
 @app.post("/districts/new", response_model=None)
@@ -191,12 +310,15 @@ async def district_new(
             "district_form.html",
             {
                 "request": request,
+                "nav": "districts",
                 "district": None,
                 "error": "Bu kod allaqachon mavjud. Boshqa kod kiriting.",
+                "flash": None,
+                "flash_err": None,
             },
             status_code=400,
         )
-    return RedirectResponse("/?msg=district_added", status_code=302)
+    return RedirectResponse("/districts?msg=district_added", status_code=302)
 
 
 @app.get("/districts/{district_id}/edit", response_class=HTMLResponse, response_model=None)
@@ -208,7 +330,7 @@ async def district_edit_form(request: Request, session: SessionDep, district_id:
         raise HTTPException(404)
     return templates.TemplateResponse(
         "district_form.html",
-        {"request": request, "district": d, "error": None},
+        {"request": request, "nav": "districts", "district": d, "error": None, "flash": None, "flash_err": None},
     )
 
 
@@ -233,12 +355,15 @@ async def district_edit(
             "district_form.html",
             {
                 "request": request,
+                "nav": "districts",
                 "district": d,
                 "error": "Bu kod boshqa tumanda ishlatilgan.",
+                "flash": None,
+                "flash_err": None,
             },
             status_code=400,
         )
-    return RedirectResponse("/?msg=district_saved", status_code=302)
+    return RedirectResponse("/districts?msg=district_saved", status_code=302)
 
 
 @app.post("/districts/{district_id}/delete", response_model=None)
@@ -251,8 +376,154 @@ async def district_delete(
         return RedirectResponse("/login", status_code=302)
     ok = await repo.delete_district(session, district_id)
     if ok:
-        return RedirectResponse("/?msg=district_deleted", status_code=302)
-    return RedirectResponse("/?err=district_has_schools", status_code=302)
+        return RedirectResponse("/districts?msg=district_deleted", status_code=302)
+    return RedirectResponse("/districts?err=district_has_schools", status_code=302)
+
+
+@app.get("/directors", response_class=HTMLResponse, response_model=None)
+async def directors_table(
+    request: Request,
+    session: SessionDep,
+    q: str = "",
+    district_id: int | None = Query(default=None),
+    sort: str = Query(default="vote_count"),
+    order: str = Query(default="desc"),
+    page: int = Query(default=0, ge=0),
+) -> HTMLResponse:
+    if not _admin_session_ok(request):
+        return RedirectResponse("/login", status_code=302)
+    per_page = 25
+    allowed_sort = {"school_name", "full_name", "district", "sort_order", "vote_count"}
+    if sort not in allowed_sort:
+        sort = "vote_count"
+    order = "asc" if order.lower() == "asc" else "desc"
+    page = max(0, page)
+    rows, total = await repo.admin_list_directors_page(
+        session,
+        district_id=district_id,
+        search=q,
+        sort=sort,
+        order=order,
+        page=page,
+        per_page=per_page,
+    )
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    if page > total_pages - 1:
+        page = total_pages - 1
+        rows, total = await repo.admin_list_directors_page(
+            session,
+            district_id=district_id,
+            search=q,
+            sort=sort,
+            order=order,
+            page=page,
+            per_page=per_page,
+        )
+    sort_urls = _directors_sort_urls(q, district_id, sort, order)
+    page_prev = urlencode(_directors_qs_parts(q, district_id, sort, order, max(0, page - 1)))
+    page_next = urlencode(_directors_qs_parts(q, district_id, sort, order, min(total_pages - 1, page + 1)))
+    districts = await repo.list_districts(session)
+    flash, flash_err = _flash_from_query(request)
+    return templates.TemplateResponse(
+        "directors.html",
+        {
+            "request": request,
+            "nav": "directors",
+            "rows": rows,
+            "districts": districts,
+            "q": q,
+            "district_id": district_id,
+            "sort": sort,
+            "order": order,
+            "page": page,
+            "total": total,
+            "total_pages": total_pages,
+            "sort_urls": sort_urls,
+            "page_prev_qs": page_prev,
+            "page_next_qs": page_next,
+            "flash": flash,
+            "flash_err": flash_err,
+        },
+    )
+
+
+@app.get("/users", response_class=HTMLResponse, response_model=None)
+async def users_table(
+    request: Request,
+    session: SessionDep,
+    q: str = "",
+    status: str = Query(default="all"),
+    sort: str = Query(default="created_at"),
+    order: str = Query(default="desc"),
+    page: int = Query(default=0, ge=0),
+    director_id: int | None = Query(default=None),
+) -> HTMLResponse:
+    if not _admin_session_ok(request):
+        return RedirectResponse("/login", status_code=302)
+    per_page = 30
+    allowed_sort = {"created_at", "telegram_id", "full_name", "username"}
+    if sort not in allowed_sort:
+        sort = "created_at"
+    order = "asc" if order.lower() == "asc" else "desc"
+    allowed_status = {"all", "complete", "voted", "no_vote", "incomplete"}
+    if status not in allowed_status:
+        status = "all"
+    page = max(0, page)
+    director_choices = await repo.admin_list_directors_for_dropdown(session)
+    filter_director = await repo.get_director(session, director_id) if director_id is not None else None
+    if director_id is not None and not filter_director:
+        director_id = None
+
+    users, total = await repo.admin_list_users_page(
+        session,
+        search=q,
+        status=status,
+        sort=sort,
+        order=order,
+        page=page,
+        per_page=per_page,
+        director_id=director_id,
+    )
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    if page > total_pages - 1:
+        page = total_pages - 1
+        users, total = await repo.admin_list_users_page(
+            session,
+            search=q,
+            status=status,
+            sort=sort,
+            order=order,
+            page=page,
+            per_page=per_page,
+            director_id=director_id,
+        )
+    sort_urls = _users_sort_urls(q, status, sort, order, director_id)
+    page_prev = urlencode(_users_qs_parts(q, status, sort, order, max(0, page - 1), director_id))
+    page_next = urlencode(_users_qs_parts(q, status, sort, order, min(total_pages - 1, page + 1), director_id))
+    flash, flash_err = _flash_from_query(request)
+    return templates.TemplateResponse(
+        "users.html",
+        {
+            "request": request,
+            "nav": "users",
+            "users": users,
+            "q": q,
+            "status": status,
+            "sort": sort,
+            "order": order,
+            "page": page,
+            "total": total,
+            "total_pages": total_pages,
+            "sort_urls": sort_urls,
+            "page_prev_qs": page_prev,
+            "page_next_qs": page_next,
+            "director_id": director_id,
+            "director_choices": director_choices,
+            "filter_director": filter_director,
+            "flash": flash,
+            "flash_err": flash_err,
+        },
+    )
 
 
 @app.get("/directors/new", response_class=HTMLResponse, response_model=None)
@@ -264,10 +535,13 @@ async def director_new_form(request: Request, session: SessionDep) -> HTMLRespon
         "director_form.html",
         {
             "request": request,
+            "nav": "directors",
             "director": None,
             "districts": districts,
             "vote_count": 0,
             "error": None,
+            "flash": None,
+            "flash_err": None,
         },
     )
 
@@ -290,15 +564,18 @@ async def director_new(
             "director_form.html",
             {
                 "request": request,
+                "nav": "directors",
                 "director": None,
                 "districts": districts,
                 "vote_count": 0,
                 "error": "Ism-familiya va maktab nomi majburiy.",
+                "flash": None,
+                "flash_err": None,
             },
             status_code=400,
         )
     await repo.create_director(session, district_id, full_name, school_name, so)
-    return RedirectResponse("/?msg=director_added", status_code=302)
+    return RedirectResponse("/directors?msg=director_added", status_code=302)
 
 
 @app.get("/directors/{director_id}/edit", response_class=HTMLResponse, response_model=None)
@@ -312,7 +589,16 @@ async def director_edit_form(request: Request, session: SessionDep, director_id:
     vc = await repo.count_votes_for_director(session, director_id)
     return templates.TemplateResponse(
         "director_form.html",
-        {"request": request, "director": d, "districts": districts, "vote_count": vc, "error": None},
+        {
+            "request": request,
+            "nav": "directors",
+            "director": d,
+            "districts": districts,
+            "vote_count": vc,
+            "error": None,
+            "flash": None,
+            "flash_err": None,
+        },
     )
 
 
@@ -337,10 +623,13 @@ async def director_edit(
             "director_form.html",
             {
                 "request": request,
+                "nav": "directors",
                 "director": d,
                 "districts": districts,
                 "vote_count": vc,
                 "error": "Ism-familiya va maktab nomi majburiy.",
+                "flash": None,
+                "flash_err": None,
             },
             status_code=400,
         )
@@ -352,7 +641,7 @@ async def director_edit(
         school_name=school_name,
         sort_order=so,
     )
-    return RedirectResponse("/?msg=director_saved", status_code=302)
+    return RedirectResponse("/directors?msg=director_saved", status_code=302)
 
 
 @app.post("/directors/{director_id}/delete", response_model=None)
@@ -361,5 +650,5 @@ async def director_delete(request: Request, session: SessionDep, director_id: in
         return RedirectResponse("/login", status_code=302)
     ok = await repo.delete_director(session, director_id)
     if ok:
-        return RedirectResponse("/?msg=director_deleted", status_code=302)
-    return RedirectResponse("/?err=director_has_votes", status_code=302)
+        return RedirectResponse("/directors?msg=director_deleted", status_code=302)
+    return RedirectResponse("/directors?err=director_has_votes", status_code=302)

@@ -1,20 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Kirish — admin{% endblock %}
 {% block body %}
-<header><h1>Admin panel</h1></header>
-<div class="card" style="max-width: 400px;">
-  <p style="color: var(--muted); margin-top: 0;">Buxoro tumanlari va maktab direktorlari boshqaruvi.</p>
-  {% if error %}<div class="warn">{{ error }}</div>{% endif %}
-  <form method="post" action="/login">
-    <div class="row">
-      <label>Login</label>
-      <input name="username" required autocomplete="username">
-    </div>
-    <div class="row">
-      <label>Parol</label>
-      <input name="password" type="password" required autocomplete="current-password">
-    </div>
-    <button type="submit" class="btn btn-primary">Kirish</button>
-  </form>
+<div class="login-wrap">
+  <div class="page-head" style="margin-bottom:1.25rem;">
+    <h1 style="font-size:1.5rem;">Admin panel</h1>
+    <p style="margin:0;color:var(--muted);">Buxoro viloyati maktab direktorlari so'rovnomasi.</p>
+  </div>
+  <div class="card">
+    {% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      <div class="row">
+        <label>Login</label>
+        <input name="username" required autocomplete="username">
+      </div>
+      <div class="row">
+        <label>Parol</label>
+        <input name="password" type="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary">Kirish</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

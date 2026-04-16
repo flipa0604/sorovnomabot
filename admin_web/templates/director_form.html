@@ -1,18 +1,18 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 {% block title %}{% if director %}Direktorni tahrirlash{% else %}Yangi direktor{% endif %}{% endblock %}
-{% block body %}
-<header>
+{% block inner %}
+<div class="page-head">
   <h1>{% if director %}Maktab / direktor{% else %}Yangi maktab + direktor{% endif %}</h1>
-  <a href="/" class="btn btn-ghost">Orqaga</a>
-</header>
+  <a href="/directors" class="btn btn-ghost">← Direktorlar</a>
+</div>
 <div class="card">
   {% if not districts %}
-  <p class="warn">Avval kamida bitta tuman qo'shing.</p>
+  <div class="flash-err">Avval kamida bitta tuman qo'shing.</div>
   {% endif %}
   {% if director and vote_count %}
-  <p style="color: var(--ok);">Hozirgi ovozlar: <strong>{{ vote_count }}</strong> (ovoz bo'lsa qatorni o'chirib bo'lmaydi).</p>
+  <p style="color: var(--success);">Hozirgi ovozlar: <strong>{{ vote_count }}</strong> (ovoz bo'lsa qatorni o'chirib bo'lmaydi).</p>
   {% endif %}
-  {% if error %}<div class="warn">{{ error }}</div>{% endif %}
+  {% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
   <form method="post" action="{% if director %}/directors/{{ director.id }}/edit{% else %}/directors/new{% endif %}" {% if not districts %}style="opacity:0.5;pointer-events:none;"{% endif %}>
     <div class="row">
       <label>Tuman</label>

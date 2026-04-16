@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <strong>BITU so'rovnoma bot</strong>
+      <span>Admin panel</span>
+    </div>
+    <nav>
+      <a class="nav-link{% if nav == 'dashboard' %} active{% endif %}" href="/">Bosh sahifa</a>
+      <a class="nav-link{% if nav == 'districts' %} active{% endif %}" href="/districts">Tumanlar</a>
+      <a class="nav-link{% if nav == 'directors' %} active{% endif %}" href="/directors">Direktorlar</a>
+      <a class="nav-link{% if nav == 'users' %} active{% endif %}" href="/users">Foydalanuvchilar</a>
+    </nav>
+    <div class="sidebar-foot">
+      <a href="/logout" class="btn btn-ghost btn-sm" style="width:100%;">Chiqish</a>
+    </div>
+  </aside>
+  <div class="main">
+    {% if flash %}<div class="flash-ok">{{ flash }}</div>{% endif %}
+    {% if flash_err %}<div class="flash-err">{{ flash_err }}</div>{% endif %}
+    {% block inner %}{% endblock %}
+    {% block scripts %}{% endblock %} 
+  </div>
+</div>
+{% endblock %}

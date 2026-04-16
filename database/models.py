@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -54,9 +54,6 @@ class User(Base):
 
 class Vote(Base):
     __tablename__ = "votes"
-    __table_args__ = (
-        UniqueConstraint("phone_normalized", name="uq_votes_phone"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_telegram_id: Mapped[int] = mapped_column(
@@ -65,7 +62,6 @@ class Vote(Base):
         unique=True,
     )
     director_id: Mapped[int] = mapped_column(ForeignKey("directors.id", ondelete="RESTRICT"))
-    phone_normalized: Mapped[str] = mapped_column(String(32), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="vote")

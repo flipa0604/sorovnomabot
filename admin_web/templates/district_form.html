@@ -1,12 +1,12 @@
-{% extends "base.html" %}
+{% extends "layout.html" %}
 {% block title %}{% if district %}Tumni tahrirlash{% else %}Yangi tuman{% endif %}{% endblock %}
-{% block body %}
-<header>
+{% block inner %}
+<div class="page-head">
   <h1>{% if district %}Tumni tahrirlash{% else %}Yangi tuman{% endif %}</h1>
-  <a href="/" class="btn btn-ghost">Orqaga</a>
-</header>
+  <a href="/districts" class="btn btn-ghost">← Tumanlar</a>
+</div>
 <div class="card">
-  {% if error %}<div class="warn">{{ error }}</div>{% endif %}
+  {% if error %}<div class="flash-err">{{ error }}</div>{% endif %}
   <form method="post" action="{% if district %}/districts/{{ district.id }}/edit{% else %}/districts/new{% endif %}">
     <div class="row">
       <label>Tuman nomi</label>
