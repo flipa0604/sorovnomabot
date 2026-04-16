@@ -1,7 +1,8 @@
+import html
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.enums import ChatMemberStatus
+from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.filters.command import CommandObject
@@ -50,30 +51,25 @@ async def enter_voting_stage(
     uname = me.username or "bot"
     if not districts:
         await message.answer(
-            "Hozircha tumanlar ro'yxati bo'sh. Administrator web-panel orqali tuman va maktablarni qo'shsin."
+            "⚠️ <b>Tumanlar yo'q.</b>\nAdmin web-panel orqali qo'shing.",
         )
         return
     await message.answer(
-        "Ovoz berish boshlandi.\n\n"
-        "1) Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n"
-        "2) Ro'yxatdan maktabni tanlang (20 tadan sahifalanadi), batafsilda "
-        "<b>Ovoz berish</b> yoki boshqa chatga <b>Ulashish</b> (inline qidiruv).\n\n"
-        f"Maktab kartasini boshqa joyga yuborish: chatda <code>@{uname} d</code> + direktor ID "
-        "(masalan <code>@{uname} d12</code>).\n\n"
-        "Eslatma: har bir akkaunt uchun bitta ovoz saqlanadi; istalgan vaqtda boshqa direktorga "
-        "<code>/start</code> yoki bot menyusidan o'zgartirishingiz mumkin. So'rovnoma Buxoro viloyati bo'yicha.",
+        "🗳 <b>Ovoz berish</b>\n\n"
+        "1) Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n\n"
+        "2) Ro'yxatdan maktabni tanlang va shu maktab direktoriga ovoz bering.\n\n"
+        "ℹ️ Faqat bitta ovoz bera olasiz!",
         reply_markup=district_filter_keyboard(districts),
-        parse_mode="HTML",
     )
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
-        "Bu bot maktab direktorlari o'rtasida so'rovnoma o'tkazish uchun mo'ljallangan.\n\n"
-        "Jarayon: kanalga a'zolik → Instagram sahifasi → telefon → ovoz.\n"
-        "Ovoz berish: tuman tanlang, ro'yxatdan maktabni tanlang; ulashish uchun inline rejim.\n\n"
-        "Boshlash: /start"
+        "📋 <b>So'rovnoma boti</b>\n\n"
+        "📢 Kanal → 📷 Instagram → 📱 Telefon → 🗳 Ovoz\n\n"
+        "/start — boshlash",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -107,16 +103,14 @@ async def cmd_start(
         if not u or not u.instagram_ok:
             await state.set_state(Registration.wait_instagram)
             await message.answer(
-                "Keyingi qadam: quyidagi havola orqali Instagram sahifamizni oching va "
-                "tanishib chiqqaningizdan keyin «Ko'rdim» tugmasini bosing.\n\n"
-                "<i>Telegram Instagramga kirishni avtomatik tekshira olmaydi — "
-                "bu qadam jamoat tartibi uchun.</i>",
+                "📷 <b>Instagram</b>\nHavolani oching, keyin <b>✅ Ko'rdim</b>.\n\n"
+                "<i>Tasdiqlash — foydalanuvchi qadamida.</i>",
                 reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
             )
             return
         await state.set_state(Registration.wait_phone)
         await message.answer(
-            "Ovoz berish uchun telefon raqamingizni ulashing (tugma orqali).",
+            "📱 <b>Telefon</b>\nPastdagi tugma orqali ulashing.",
             reply_markup=contact_keyboard(),
         )
         return
@@ -128,8 +122,7 @@ async def cmd_start(
 
     from utils.keyboards import channel_keyboard
     await message.answer(
-        f"So'rovnomada ishtirok etish uchun avval {pretty} kanaliga a'zo bo'ling.\n"
-        "Keyin «A'zolikni tekshirish» tugmasini bosing.",
+        f"📢 <b>Kanal</b>\n{html.escape(pretty)} ga qo'shiling, keyin <b>✅ A'zomani tekshirish</b>.",
         reply_markup=channel_keyboard(link if link.startswith("@") else get_settings().required_channel_id),
     )
 
@@ -143,14 +136,15 @@ async def callback_check_subscription(
     await query.answer()
     uid = query.from_user.id
     if not await user_is_channel_member(bot, uid):
-        await query.message.answer("Kanalda a'zo bo'lmaganga o'xshaysiz. Iltimos, avval kanalga qo'shiling.")
+        await query.message.answer(
+            "⚠️ Kanalda a'zo emassiz.\nAvval qo'shiling, keyin qayta tekshiring.",
+        )
         return
 
     await repo.set_user_flags(session, uid, channel_ok=True)
     await state.set_state(Registration.wait_instagram)
     await query.message.answer(
-        "Rahmat! Endi Instagram sahifasini oching va tanishib chiqqaningizdan keyin tugmani bosing.\n\n"
-        "<i>Instagram tekshiruvi foydalanuvchi tasdiqlashi bilan amalga oshadi.</i>",
+        "✅ <b>Kanal OK</b>\n\n📷 Instagram — havola, keyin <b>✅ Ko'rdim</b>.",
         reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
     )
 
@@ -166,7 +160,7 @@ async def callback_instagram(
     await repo.set_user_flags(session, uid, instagram_ok=True)
     await state.set_state(Registration.wait_phone)
     await query.message.answer(
-        "Endi ovoz berish uchun telefon raqamingizni ulashing.",
+        "📱 <b>Telefon</b>\nTugma orqali ulashing.",
         reply_markup=contact_keyboard(),
     )
 
@@ -179,18 +173,18 @@ async def on_contact(
 ) -> None:
     contact: Contact = message.contact
     if contact.user_id is not None and contact.user_id != message.from_user.id:
-        await message.answer("Faqat o'z kontaktingizni yuboring.")
+        await message.answer("⚠️ Faqat <b>o'z</b> kontaktingiz.", parse_mode=ParseMode.HTML)
         return
 
     phone = normalize_phone(contact.phone_number or "")
     if len(phone) < 12:
-        await message.answer("Telefon raqam noto'g'ri. Qaytadan yuboring.")
+        await message.answer("❌ Raqam noto'g'ri. Qayta yuboring.")
         return
 
     uid = message.from_user.id
     if await repo.phone_taken_by_other(session, phone, uid):
         await message.answer(
-            "Bu telefon raqami boshqa Telegram akkauntiga bog'langan.",
+            "❌ Bu raqam boshqa akkauntga bog'langan.",
             reply_markup=ReplyKeyboardRemove(),
         )
         await state.clear()
@@ -198,10 +192,10 @@ async def on_contact(
 
     existing = await repo.get_user(session, uid)
     if existing and existing.phone_normalized and existing.phone_normalized != phone:
-        await message.answer("Telefon raqam o'zgartirilmaydi.")
+        await message.answer("❌ Raqamni o'zgartirib bo'lmaydi.")
         return
 
     await repo.set_user_flags(session, uid, phone_normalized=phone)
 
-    await message.answer("Raqam qabul qilindi.", reply_markup=ReplyKeyboardRemove())
+    await message.answer("✅ Raqam qabul qilindi.", reply_markup=ReplyKeyboardRemove())
     await enter_voting_stage(message, session, state, uid, message.bot)
