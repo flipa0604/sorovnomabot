@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode
 
+from pydantic import BaseModel
+
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +22,8 @@ from config import get_settings
 from database import repositories as repo
 from database.seed import seed_districts_if_empty
 from database.session import async_session_maker, init_db
+
+from .tg_webapp import TG_APP_BRIDGE_HTML, parse_webapp_init_data_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -652,3 +656,34 @@ async def director_delete(request: Request, session: SessionDep, director_id: in
     if ok:
         return RedirectResponse("/directors?msg=director_deleted", status_code=302)
     return RedirectResponse("/directors?err=director_has_votes", status_code=302)
+
+
+class TgWebAppAuthBody(BaseModel):
+    init_data: str = ""
+
+
+@app.get("/tg-app", response_class=HTMLResponse, response_model=None)
+async def telegram_mini_app_bridge() -> HTMLResponse:
+    """Telegram Web App ochilganda: initData yuborib sessiya ochiladi."""
+    return HTMLResponse(TG_APP_BRIDGE_HTML)
+
+
+@app.post("/auth/tg-webapp", response_model=None)
+async def telegram_webapp_auth(request: Request, body: TgWebAppAuthBody) -> JSONResponse:
+    """Telegram Mini App: initData imzosini tekshiradi, faqat ADMIN_IDS dagi ID uchun sessiya."""
+    settings = get_settings()
+    token = (settings.bot_token or "").strip()
+    if not token:
+        return JSONResponse({"ok": False, "error": "BOT_TOKEN sozlanmagan."}, status_code=503)
+    if not settings.admin_ids:
+        return JSONResponse({"ok": False, "error": "ADMIN_IDS bo'sh."}, status_code=503)
+    uid = parse_webapp_init_data_user_id(body.init_data, token)
+    if uid is None:
+        return JSONResponse(
+            {"ok": False, "error": "Telegram Web App ma'lumoti yaroqsiz yoki muddati o'tgan."},
+            status_code=401,
+        )
+    if uid not in settings.admin_ids:
+        return JSONResponse({"ok": False, "error": "Admin ro'yxatida siz yo'qsiz."}, status_code=403)
+    request.session["admin"] = True
+    return JSONResponse({"ok": True, "redirect": "/"})

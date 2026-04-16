@@ -421,6 +421,30 @@ async def admin_top_directors(session: AsyncSession, limit: int = 10) -> list[tu
     return rows[:limit]
 
 
+async def admin_count_directors_total(session: AsyncSession) -> int:
+    return int(await session.scalar(select(func.count()).select_from(Director)) or 0)
+
+
+async def admin_count_districts_total(session: AsyncSession) -> int:
+    return int(await session.scalar(select(func.count()).select_from(District)) or 0)
+
+
+async def admin_district_stats_for_bot(session: AsyncSession) -> list[tuple[str, int, int]]:
+    """(tuman nomi, maktab/direktorlar soni, shu tumandagi ovozlar)."""
+    districts = await list_districts(session)
+    rows: list[tuple[str, int, int]] = []
+    for d in districts:
+        n_dir = await count_directors_in_district(session, d.id)
+        nv = await session.scalar(
+            select(func.count(Vote.id))
+            .select_from(Vote)
+            .join(Director, Vote.director_id == Director.id)
+            .where(Director.district_id == d.id)
+        )
+        rows.append((d.name, n_dir, int(nv or 0)))
+    return rows
+
+
 def _day_key(raw) -> date | None:
     if raw is None:
         return None

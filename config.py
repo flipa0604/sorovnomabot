@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     web_admin_password: str = Field(default="", validation_alias="WEB_ADMIN_PASSWORD")
     web_admin_host: str = Field(default="127.0.0.1", validation_alias="WEB_ADMIN_HOST")
     web_admin_port: int = Field(default=8765, validation_alias="WEB_ADMIN_PORT")
+    # HTTPS veb-admin domeni (Telegram Web App / brauzer): masalan https://admin.bimu.uz
+    web_admin_public_url: str = Field(default="", validation_alias="WEB_ADMIN_PUBLIC_URL")
 
     @field_validator("admin_ids", mode="before")
     @classmethod
