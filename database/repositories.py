@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import String, and_, cast, exists, func, or_, select, true
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,20 +14,32 @@ async def get_or_create_user(
     username: str | None,
     full_name: str | None,
 ) -> User:
+    """Parallel /start da ikki INSERT emas — SAVEPOINT + IntegrityError yoki qayta SELECT."""
     result = await session.execute(select(User).where(User.telegram_id == telegram_id))
     user = result.scalar_one_or_none()
     if user:
         user.username = username
         user.full_name = full_name
         return user
-    user = User(
-        telegram_id=telegram_id,
-        username=username,
-        full_name=full_name,
-    )
-    session.add(user)
-    await session.flush()
-    return user
+
+    try:
+        async with session.begin_nested():
+            session.add(
+                User(
+                    telegram_id=telegram_id,
+                    username=username,
+                    full_name=full_name,
+                )
+            )
+            await session.flush()
+    except IntegrityError:
+        pass
+
+    result = await session.execute(select(User).where(User.telegram_id == telegram_id))
+    existing = result.scalar_one()
+    existing.username = username
+    existing.full_name = full_name
+    return existing
 
 
 async def set_user_flags(

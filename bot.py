@@ -53,10 +53,10 @@ async def main() -> None:
 
     dp.include_router(setup_routers())
 
-    async def _preload_channel_invite(b: Bot) -> None:
+    async def _preload_channel_invite(bot: Bot) -> None:
         from utils.channel_invite import preload_required_channel_join_url
 
-        await preload_required_channel_join_url(b)
+        await preload_required_channel_join_url(bot)
 
     dp.startup.register(_preload_channel_invite)
 
