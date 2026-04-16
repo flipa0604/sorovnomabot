@@ -26,7 +26,7 @@ def instagram_confirm_keyboard(url: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📷 Instagram", url=url)],
             [
                 InlineKeyboardButton(
-                    text="✅ Ko'rdim",
+                    text="✅ Tasdiqlash",
                     callback_data="ig:confirm",
                 )
             ],
@@ -34,12 +34,14 @@ def instagram_confirm_keyboard(url: str) -> InlineKeyboardMarkup:
     )
 
 
-def channel_keyboard(channel_username: str) -> InlineKeyboardMarkup:
-    """channel_username @ bilan yoki https"""
-    link = channel_username if channel_username.startswith("http") else f"https://t.me/{channel_username.lstrip('@')}"
+def channel_keyboard(join_url: str) -> InlineKeyboardMarkup:
+    """join_url — kanal taklif havolasi yoki to'liq https (get_chat / create_chat_invite_link)."""
+    url = join_url.strip()
+    if not url.startswith(("http://", "https://")):
+        url = f"https://t.me/{url.lstrip('@')}"
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Kanal", url=link)],
+            [InlineKeyboardButton(text="📢 Kanalga o'tish", url=url)],
             [InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")],
         ],
     )
@@ -116,7 +118,7 @@ def district_filter_keyboard(districts: list[District]) -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
     for d in districts:
         label = (d.name or "")[:38]
-        row.append(InlineKeyboardButton(text=f"{label}", callback_data=f"dist:{d.id}"))
+        row.append(InlineKeyboardButton(text=f"📌 {label}", callback_data=f"dist:{d.id}"))
         if len(row) == 2:
             rows.append(row)
             row = []

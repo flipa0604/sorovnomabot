@@ -53,6 +53,13 @@ async def main() -> None:
 
     dp.include_router(setup_routers())
 
+    async def _preload_channel_invite(b: Bot) -> None:
+        from utils.channel_invite import preload_required_channel_join_url
+
+        await preload_required_channel_join_url(b)
+
+    dp.startup.register(_preload_channel_invite)
+
     logger.info("Bot ishga tushmoqda…")
     await dp.start_polling(bot)
 

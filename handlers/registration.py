@@ -103,8 +103,7 @@ async def cmd_start(
         if not u or not u.instagram_ok:
             await state.set_state(Registration.wait_instagram)
             await message.answer(
-                "📷 <b>Instagram</b>\nHavolani oching, keyin <b>✅ Ko'rdim</b>.\n\n"
-                "<i>Tasdiqlash — foydalanuvchi qadamida.</i>",
+                "📷 <b>Instagram</b>\nHavolani oching va instagram profilimizga obuna bo'ling, keyin <b>✅ Tasdiqlash</b> tugmasini bosing.",
                 reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
             )
             return
@@ -117,13 +116,21 @@ async def cmd_start(
 
     await state.set_state(Registration.wait_subscription)
     ch = get_settings().required_channel_id
-    link = ch if ch.startswith("@") else ch
     pretty = ch if ch.startswith("@") else f"kanal ({ch})"
 
+    from utils.channel_invite import get_required_channel_join_url
     from utils.keyboards import channel_keyboard
+
+    try:
+        join_url = await get_required_channel_join_url(bot)
+    except Exception as e:
+        logger.warning("Kanal taklif havolasi: %s", e)
+        join_url = f"https://t.me/{ch.lstrip('@')}" if ch.startswith("@") else "https://t.me/telegram"
+
     await message.answer(
-        f"📢 <b>Kanal</b>\n{html.escape(pretty)} ga qo'shiling, keyin <b>✅ A'zomani tekshirish</b>.",
-        reply_markup=channel_keyboard(link if link.startswith("@") else get_settings().required_channel_id),
+        f"📢 <b>Kanal</b>\n{html.escape(pretty)} ga qo'shiling, keyin <b>✅ A'zolikni tekshirish</b>.",
+        reply_markup=channel_keyboard(join_url),
+        parse_mode=ParseMode.HTML,
     )
 
 @router.callback_query(F.data == "sub:check")
