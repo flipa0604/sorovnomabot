@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     bot_token: str = Field(default="", validation_alias="BOT_TOKEN")
     required_channel_id: str = Field(default="", validation_alias="REQUIRED_CHANNEL_ID")
     instagram_profile_url: str = Field(default="https://www.instagram.com/", validation_alias="INSTAGRAM_PROFILE_URL")
-    admin_ids: list[int] = Field(default_factory=list, validation_alias="ADMIN_IDS")
+    # .env da vergul bilan: 111,222 — list[int] to'g'ridan-to'g'ri yozilsa pydantic-settings JSON kutadi va xato beradi.
+    admin_ids_env: str = Field(default="", validation_alias="ADMIN_IDS")
     database_url: str = Field(
         default="sqlite+aiosqlite:///./data/bot.db",
         validation_alias="DATABASE_URL",
@@ -33,16 +34,13 @@ class Settings(BaseSettings):
     # HTTPS veb-admin domeni (Telegram Web App / brauzer): masalan https://admin.bimu.uz
     web_admin_public_url: str = Field(default="", validation_alias="WEB_ADMIN_PUBLIC_URL")
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v: str | list[int] | int) -> list[int]:
-        if isinstance(v, list):
-            return [int(x) for x in v]
-        if isinstance(v, int):
-            return [v]
-        if isinstance(v, str) and v.strip():
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return []
+    @computed_field
+    @property
+    def admin_ids(self) -> list[int]:
+        raw = self.admin_ids_env.strip()
+        if not raw:
+            return []
+        return [int(x.strip()) for x in raw.split(",") if x.strip()]
 
     @property
     def is_sqlite(self) -> bool:
