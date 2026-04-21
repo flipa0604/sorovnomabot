@@ -58,9 +58,9 @@ async def cmd_admin(message: Message) -> None:
         "<b>/stats</b> — umumiy statistika:\n"
         "• barcha Telegram foydalanuvchilar soni\n"
         "• jami berilgan ovozlar\n"
-        "• tumanlar va maktab direktorlari soni\n"
+        "• tumanlar va maktablar soni\n"
         "• har bir tuman bo'yicha: maktablar soni va shu tumanga tushgan ovozlar\n\n"
-        "<b>/top</b> — ovozlar soni bo'yicha <b>TOP-10</b> maktab direktorlari (reyting).\n\n"
+        "<b>/top</b> — ovozlar soni bo'yicha <b>TOP-10</b> maktablar (reyting).\n\n"
         "<b>/export</b> — barcha ovozlar Excel fayl ko'rinishida (pandas).\n\n"
         "<b>/admin</b> — ushbu yordam xabari."
     )
@@ -77,7 +77,7 @@ async def cmd_admin(message: Message) -> None:
 async def cmd_stats(message: Message, session) -> None:
     total_users = await repo.admin_count_users(session)
     total_votes = await repo.admin_count_votes(session)
-    n_directors = await repo.admin_count_directors_total(session)
+    n_schools = await repo.admin_count_schools_total(session)
     n_districts = await repo.admin_count_districts_total(session)
     district_rows = await repo.admin_district_stats_for_bot(session)
 
@@ -85,7 +85,7 @@ async def cmd_stats(message: Message, session) -> None:
         "<b>Statistika</b>",
         "",
         f"🗺 Tumanlar: <b>{n_districts}</b>",
-        f"🏫 Maktab direktorlari: <b>{n_directors}</b>",
+        f"🏫 Maktablar: <b>{n_schools}</b>",
         f"👥 Foydalanuvchilar (botda): <b>{total_users}</b>",
         f"🗳 Jami ovozlar: <b>{total_votes}</b>",
         "",
@@ -103,7 +103,7 @@ async def cmd_stats(message: Message, session) -> None:
 
 @router.message(Command("top"), AdminFilter())
 async def cmd_top(message: Message, session) -> None:
-    top = await repo.admin_top_directors(session, 10)
+    top = await repo.admin_top_schools(session, 10)
     if not top:
         await message.answer("Hali hech qayerga ovoz berilmagan yoki TOP bo'sh.", parse_mode=ParseMode.HTML)
         return
@@ -111,8 +111,7 @@ async def cmd_top(message: Message, session) -> None:
     for i, (d, cnt) in enumerate(top, 1):
         tuman = html.escape(d.district.name) if d.district else "—"
         lines.append(
-            f"{i}. <b>{html.escape(d.full_name or '')}</b>\n"
-            f"   🏫 {html.escape(d.school_name or '')}\n"
+            f"{i}. <b>{html.escape(d.school_name or '')}</b>\n"
             f"   📍 {tuman} — <b>{cnt}</b> ovoz"
         )
     text = "\n".join(lines)
@@ -126,7 +125,7 @@ async def cmd_export(message: Message, session) -> None:
     rows = []
     for v in votes:
         u = v.user
-        d = v.director
+        s = v.school
         rows.append(
             {
                 "Id": v.id,
@@ -135,10 +134,9 @@ async def cmd_export(message: Message, session) -> None:
                 "Foydalanuvchi": u.full_name if u else "",
                 "Username": u.username if u else "",
                 "Telefon": u.phone_normalized if u else "",
-                "Direktor id": d.id if d else "",
-                "Direktor": d.full_name if d else "",
-                "Tuman": d.district.name if d and d.district else "",
-                "Maktab": d.school_name if d else "",
+                "Maktab id": s.id if s else "",
+                "Maktab": s.school_name if s else "",
+                "Tuman": s.district.name if s and s.district else "",
             }
         )
     df = pd.DataFrame(rows)

@@ -3,7 +3,6 @@ import logging
 import re
 
 from aiogram import Bot, F, Router
-from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import BaseFilter
 from aiogram.fsm.context import FSMContext
@@ -20,8 +19,8 @@ from sqlalchemy.exc import IntegrityError
 
 from database import repositories as repo
 from utils.keyboards import (
-    director_detail_keyboard,
     district_filter_keyboard,
+    school_detail_keyboard,
     schools_page_keyboard,
     vote_start_deeplink_url,
 )
@@ -31,24 +30,21 @@ logger = logging.getLogger(__name__)
 router = Router(name="voting")
 
 DIST_PREFIX = re.compile(r"^dist:(?P<id>.+)$")
-DIRECTOR_INLINE_QUERY = re.compile(r"^d(\d+)\s*$", re.IGNORECASE)
+SCHOOL_INLINE_QUERY = re.compile(r"^d(\d+)\s*$", re.IGNORECASE)
 
 PER_PAGE = 20
 
 
-class DirectorShareInlineFilter(BaseFilter):
-    """Inline so'rov: @bot d123 (direktor id)."""
+class SchoolShareInlineFilter(BaseFilter):
+    """Inline so'rov: @bot d123 (maktab id)."""
 
     async def __call__(self, inline_query: InlineQuery) -> bool:
-        return bool(DIRECTOR_INLINE_QUERY.match((inline_query.query or "").strip()))
+        return bool(SCHOOL_INLINE_QUERY.match((inline_query.query or "").strip()))
 
 
-def _detail_html(director) -> str:
-    dist_name = director.district.name if director.district else ""
-    parts = [
-        f"🏫 <b>{html.escape(director.school_name or '')}</b>",
-        f"👤 <b>{html.escape(director.full_name or '')}</b>",
-    ]
+def _detail_html(school) -> str:
+    dist_name = school.district.name if school.district else ""
+    parts = [f"🏫 <b>{html.escape(school.school_name or '')}</b>"]
     if dist_name:
         parts.append(f"📍 {html.escape(dist_name)}")
     return "\n".join(parts)
@@ -69,27 +65,26 @@ async def _validate_voter(session, uid: int) -> tuple[bool, str | None]:
     return True, None
 
 
-async def _apply_vote_after_confirmed(session, uid: int, director_id: int) -> tuple[bool, str | None]:
-    director = await repo.get_director(session, director_id)
-    if not director:
+async def _apply_vote_after_confirmed(session, uid: int, school_id: int) -> tuple[bool, str | None]:
+    school = await repo.get_school(session, school_id)
+    if not school:
         return False, "❌ Maktab topilmadi."
     try:
-        await repo.upsert_user_vote(session, uid, director.id)
+        await repo.upsert_user_vote(session, uid, school.id)
     except IntegrityError as e:
         logger.warning("Ovoz saqlash xatosi: %s", e)
         return False, "❌ Saqlab bo'lmadi."
     return True, None
 
 
-async def _send_vote_success(bot: Bot, uid: int, director, *, changed: bool) -> None:
-    dist_name = director.district.name if director.district else ""
+async def _send_vote_success(bot: Bot, uid: int, school, *, changed: bool) -> None:
+    dist_name = school.district.name if school.district else ""
     head = "🔄 Ovoz yangilandi!" if changed else "✅ Ovoz qabul qilindi!"
     try:
         await bot.send_message(
             uid,
             f"{head}\n\n"
-            f"👤 <b>{html.escape(director.full_name or '')}</b>\n"
-            f"🏫 {html.escape(director.school_name or '')}\n"
+            f"🏫 <b>{html.escape(school.school_name or '')}</b>\n"
             f"📍 {html.escape(dist_name)}\n\n"
             "🙏 Rahmat!",
         )
@@ -109,7 +104,7 @@ async def callback_vote_change_confirmed(
         await query.answer()
         return
     try:
-        director_id = int(raw[1])
+        school_id = int(raw[1])
     except ValueError:
         await query.answer("❌ Noto'g'ri ma'lumot.", show_alert=True)
         return
@@ -120,15 +115,15 @@ async def callback_vote_change_confirmed(
         await query.answer(err or "Xato", show_alert=True)
         return
 
-    ok, err = await _apply_vote_after_confirmed(session, uid, director_id)
+    ok, err = await _apply_vote_after_confirmed(session, uid, school_id)
     if not ok:
         await query.answer(err or "Xato", show_alert=True)
         return
 
     await query.answer("✅")
-    director = await repo.get_director(session, director_id)
-    if director:
-        await _send_vote_success(bot, uid, director, changed=True)
+    school = await repo.get_school(session, school_id)
+    if school:
+        await _send_vote_success(bot, uid, school, changed=True)
     await state.clear()
     try:
         await query.message.edit_text(
@@ -164,7 +159,7 @@ async def callback_confirm_vote(
         await query.answer()
         return
     try:
-        director_id = int(raw[1])
+        school_id = int(raw[1])
     except ValueError:
         await query.answer("❌ Noto'g'ri ma'lumot.", show_alert=True)
         return
@@ -175,34 +170,32 @@ async def callback_confirm_vote(
         await query.answer(err or "Xato", show_alert=True)
         return
 
-    director = await repo.get_director(session, director_id)
-    if not director:
+    school = await repo.get_school(session, school_id)
+    if not school:
         await query.answer("❌ Maktab topilmadi.", show_alert=True)
         return
 
     current = await repo.get_user_vote(session, uid)
-    if current and current.director_id == director_id:
+    if current and current.school_id == school_id:
         await query.answer("ℹ️ Shu maktabga allaqachon ovoz bergansiz.", show_alert=True)
         return
 
-    if current and current.director_id != director_id:
-        old_d = current.director
-        if not old_d:
-            old_d = await repo.get_director(session, current.director_id)
-        old_dist = (old_d.district.name if old_d and old_d.district else "") or "—"
-        old_name = (old_d.full_name if old_d else "") or "—"
-        old_school = (old_d.school_name if old_d else "") or "—"
+    if current and current.school_id != school_id:
+        old_s = current.school
+        if not old_s:
+            old_s = await repo.get_school(session, current.school_id)
+        old_dist = (old_s.district.name if old_s and old_s.district else "") or "—"
+        old_school = (old_s.school_name if old_s else "") or "—"
         text = (
             "⚠️ <b>Ovozni o'zgartirish</b>\n\n"
             f"📍 {html.escape(old_dist)}\n"
-            f"🏫 <i>{html.escape(old_school)}</i>\n"
-            f"👤 {html.escape(old_name)}\n\n"
+            f"🏫 <i>{html.escape(old_school)}</i>\n\n"
             "Yangi tanlovga o'tasizmi?"
         )
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="✅ Ha", callback_data=f"vch:{director_id}"),
+                    InlineKeyboardButton(text="✅ Ha", callback_data=f"vch:{school_id}"),
                     InlineKeyboardButton(text="❌ Yo'q", callback_data="vca"),
                 ],
             ]
@@ -214,14 +207,14 @@ async def callback_confirm_vote(
             await query.message.answer(text, reply_markup=kb, )
         return
 
-    ok, err = await _apply_vote_after_confirmed(session, uid, director_id)
+    ok, err = await _apply_vote_after_confirmed(session, uid, school_id)
     if not ok:
         await query.answer(err or "Xato", show_alert=True)
         return
 
     await query.answer("✅")
-    if director:
-        await _send_vote_success(bot, uid, director, changed=False)
+    if school:
+        await _send_vote_success(bot, uid, school, changed=False)
     await state.clear()
     try:
         await query.message.edit_text(
@@ -254,7 +247,7 @@ async def callback_schools_page(
         await query.answer("❌ Tuman topilmadi.", show_alert=True)
         return
 
-    total = await repo.count_directors_in_district(session, district_id)
+    total = await repo.count_schools_in_district(session, district_id)
     if total == 0:
         await query.answer()
         kb = InlineKeyboardMarkup(
@@ -272,9 +265,9 @@ async def callback_schools_page(
 
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
     page = max(0, min(page, total_pages - 1))
-    directors = await repo.list_directors_by_district_school_page(session, district_id, page, PER_PAGE)
+    schools = await repo.list_schools_by_district_page(session, district_id, page, PER_PAGE)
     text = _school_list_caption(district.name, page, total_pages)
-    kb = schools_page_keyboard(directors, district_id, page, total, PER_PAGE)
+    kb = schools_page_keyboard(schools, district_id, page, total, PER_PAGE)
     await query.answer()
     try:
         await query.message.edit_text(text, reply_markup=kb, )
@@ -284,7 +277,7 @@ async def callback_schools_page(
 
 
 @router.callback_query(Voting.active, F.data.startswith("dt:"))
-async def callback_director_detail(
+async def callback_school_detail(
     query: CallbackQuery,
     session,
 ) -> None:
@@ -293,20 +286,20 @@ async def callback_director_detail(
         await query.answer()
         return
     try:
-        director_id = int(parts[1])
+        school_id = int(parts[1])
         district_id = int(parts[2])
         list_page = int(parts[3])
     except ValueError:
         await query.answer()
         return
 
-    director = await repo.get_director(session, director_id)
-    if not director:
+    school = await repo.get_school(session, school_id)
+    if not school:
         await query.answer("❌ Maktab topilmadi.", show_alert=True)
         return
 
-    text = _detail_html(director) + "\n\n<i>Quyidagilardan birini tanlang:</i>"
-    kb = director_detail_keyboard(director_id, district_id, list_page)
+    text = _detail_html(school) + "\n\n<i>Quyidagilardan birini tanlang:</i>"
+    kb = school_detail_keyboard(school_id, district_id, list_page)
     await query.answer()
     try:
         await query.message.edit_text(text, reply_markup=kb, )
@@ -372,7 +365,7 @@ async def set_district_and_show_schools(
 
     await state.update_data(district_id=did)
 
-    total = await repo.count_directors_in_district(session, did)
+    total = await repo.count_schools_in_district(session, did)
     kb_back = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="🔙 Tumanlar", callback_data="nav:distlist")]]
     )
@@ -391,9 +384,9 @@ async def set_district_and_show_schools(
         return
 
     total_pages = max(1, (total + PER_PAGE - 1) // PER_PAGE)
-    directors = await repo.list_directors_by_district_school_page(session, did, 0, PER_PAGE)
+    schools = await repo.list_schools_by_district_page(session, did, 0, PER_PAGE)
     text = _school_list_caption(d.name, 0, total_pages)
-    kb = schools_page_keyboard(directors, did, 0, total, PER_PAGE)
+    kb = schools_page_keyboard(schools, did, 0, total, PER_PAGE)
     try:
         await msg.edit_text(text, reply_markup=kb, )
     except TelegramBadRequest as e:
@@ -401,20 +394,20 @@ async def set_district_and_show_schools(
         await msg.answer(text, reply_markup=kb, )
 
 
-@router.inline_query(DirectorShareInlineFilter())
-async def inline_share_director(
+@router.inline_query(SchoolShareInlineFilter())
+async def inline_share_school(
     inline_query: InlineQuery,
     session,
     bot: Bot,
 ) -> None:
     """d{id} — boshqa chatda ulashish (tashqidagi ovoz uchun havola)."""
-    m = DIRECTOR_INLINE_QUERY.match((inline_query.query or "").strip())
+    m = SCHOOL_INLINE_QUERY.match((inline_query.query or "").strip())
     if not m:
         await inline_query.answer([], cache_time=0, is_personal=True)
         return
-    director_id = int(m.group(1))
-    director = await repo.get_director(session, director_id)
-    if not director:
+    school_id = int(m.group(1))
+    school = await repo.get_school(session, school_id)
+    if not school:
         await inline_query.answer([], cache_time=0, is_personal=True)
         return
 
@@ -424,27 +417,26 @@ async def inline_share_director(
         await inline_query.answer([], cache_time=0, is_personal=True)
         return
 
-    dist_name = director.district.name if director.district else ""
-    title = (director.school_name or director.full_name or "Maktab")[:64]
-    desc = (f"{director.full_name} · {dist_name}" if dist_name else (director.full_name or ""))[:128]
+    dist_name = school.district.name if school.district else ""
+    title = (school.school_name or "Maktab")[:64]
+    desc = (f"{school.school_name} · {dist_name}" if dist_name else (school.school_name or ""))[:128]
 
     body_lines = [
-        f"🏫 <b>{html.escape(director.school_name or '')}</b>",
-        f"👤 <b>{html.escape(director.full_name or '')}</b>",
+        f"🏫 <b>{html.escape(school.school_name or '')}</b>",
     ]
     if dist_name:
         body_lines.append(f"📍 {html.escape(dist_name)}")
     body_lines.extend(["", "👇 <i>Botda ovoz berish:</i>"])
     message_text = "\n".join(body_lines)
 
-    vote_url = vote_start_deeplink_url(uname, director_id)
+    vote_url = vote_start_deeplink_url(uname, school_id)
     markup = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="🗳 Botda ovoz berish", url=vote_url)]]
     )
 
     results = [
         InlineQueryResultArticle(
-            id=f"d{director_id}",
+            id=f"d{school_id}",
             title=title,
             description=desc or None,
             input_message_content=InputTextMessageContent(
@@ -472,16 +464,16 @@ async def offer_vote_from_start_payload(
     message: Message,
     session,
     state: FSMContext,
-    director_id: int,
+    school_id: int,
 ) -> None:
     """/start d{id} — tasdiq."""
-    director = await repo.get_director(session, director_id)
-    if not director:
+    school = await repo.get_school(session, school_id)
+    if not school:
         await message.answer("❌ Maktab topilmadi.")
         return
     await state.set_state(Voting.active)
-    text = _detail_html(director) + "\n\n👇 <b>Ovoz berish</b> tugmasini bosing."
+    text = _detail_html(school) + "\n\n👇 <b>Ovoz berish</b> tugmasini bosing."
     kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="✅ Ovoz berish", callback_data=f"vok:{director_id}")]]
+        inline_keyboard=[[InlineKeyboardButton(text="✅ Ovoz berish", callback_data=f"vok:{school_id}")]]
     )
     await message.answer(text, reply_markup=kb, )

@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import Director, District, User, Vote
+from database.models import District, School, User, Vote
 
 
 async def get_or_create_user(
@@ -86,10 +86,10 @@ async def get_user_vote(
     session: AsyncSession,
     telegram_id: int,
 ) -> Vote | None:
-    """Foydalanuvchining (agar bor bo'lsa) yagona ovoz yozuvi; direktor yuklangan."""
+    """Foydalanuvchining (agar bor bo'lsa) yagona ovoz yozuvi; maktab yuklangan."""
     result = await session.execute(
         select(Vote)
-        .options(selectinload(Vote.director).selectinload(Director.district))
+        .options(selectinload(Vote.school).selectinload(School.district))
         .where(Vote.user_telegram_id == telegram_id)
     )
     return result.scalar_one_or_none()
@@ -98,15 +98,15 @@ async def get_user_vote(
 async def upsert_user_vote(
     session: AsyncSession,
     telegram_id: int,
-    director_id: int,
+    school_id: int,
 ) -> Vote:
-    """Ovoz bo'lmasa yaratadi, bo'lsa direktor_id ni yangilaydi."""
+    """Ovoz bo'lmasa yaratadi, bo'lsa school_id ni yangilaydi."""
     existing = await get_user_vote(session, telegram_id)
     if existing:
-        existing.director_id = director_id
+        existing.school_id = school_id
         await session.flush()
         return existing
-    v = Vote(user_telegram_id=telegram_id, director_id=director_id)
+    v = Vote(user_telegram_id=telegram_id, school_id=school_id)
     session.add(v)
     await session.flush()
     return v
@@ -115,11 +115,11 @@ async def upsert_user_vote(
 async def create_vote(
     session: AsyncSession,
     telegram_id: int,
-    director_id: int,
+    school_id: int,
 ) -> Vote:
     vote = Vote(
         user_telegram_id=telegram_id,
-        director_id=director_id,
+        school_id=school_id,
     )
     session.add(vote)
     await session.flush()
@@ -137,25 +137,25 @@ async def get_district(session: AsyncSession, district_id: int) -> District | No
     return result.scalar_one_or_none()
 
 
-async def count_directors_in_district(session: AsyncSession, district_id: int) -> int:
+async def count_schools_in_district(session: AsyncSession, district_id: int) -> int:
     n = await session.scalar(
-        select(func.count()).select_from(Director).where(Director.district_id == district_id)
+        select(func.count()).select_from(School).where(School.district_id == district_id)
     )
     return int(n or 0)
 
 
-async def list_directors_by_district_school_page(
+async def list_schools_by_district_page(
     session: AsyncSession,
     district_id: int,
     page: int,
     per_page: int = 20,
-) -> list[Director]:
+) -> list[School]:
     """Maktab nomi bo'yicha tartib; sahifalash."""
     stmt = (
-        select(Director)
-        .options(selectinload(Director.district))
-        .where(Director.district_id == district_id)
-        .order_by(Director.school_name, Director.id)
+        select(School)
+        .options(selectinload(School.district))
+        .where(School.district_id == district_id)
+        .order_by(School.school_name, School.id)
         .offset(max(0, page) * per_page)
         .limit(per_page)
     )
@@ -163,80 +163,78 @@ async def list_directors_by_district_school_page(
     return list(result.scalars().all())
 
 
-async def search_directors(
+async def search_schools(
     session: AsyncSession,
     query: str,
     district_id: int | None,
     limit: int = 50,
-) -> list[Director]:
+) -> list[School]:
     stmt = (
-        select(Director)
-        .options(selectinload(Director.district))
-        .order_by(Director.sort_order, Director.full_name)
+        select(School)
+        .options(selectinload(School.district))
+        .order_by(School.sort_order, School.school_name)
     )
     if district_id is not None:
-        stmt = stmt.where(Director.district_id == district_id)
+        stmt = stmt.where(School.district_id == district_id)
     q = query.strip()
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(Director.full_name.ilike(like))
+        stmt = stmt.where(School.school_name.ilike(like))
     stmt = stmt.limit(limit)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
-async def get_director(session: AsyncSession, director_id: int) -> Director | None:
+async def get_school(session: AsyncSession, school_id: int) -> School | None:
     result = await session.execute(
-        select(Director)
-        .options(selectinload(Director.district))
-        .where(Director.id == director_id)
+        select(School)
+        .options(selectinload(School.district))
+        .where(School.id == school_id)
     )
     return result.scalar_one_or_none()
 
 
-async def stats_summary(session: AsyncSession) -> tuple[int, list[tuple[str, int, str, str]]]:
+async def stats_summary(session: AsyncSession) -> tuple[int, list[tuple[str, int, str]]]:
     total = await session.scalar(select(func.count()).select_from(Vote))
     total = int(total or 0)
 
     stmt = (
-        select(Director.full_name, Director.school_name, District.name, func.count(Vote.id))
-        .join(Vote, Vote.director_id == Director.id)
-        .join(District, Director.district_id == District.id)
-        .group_by(Director.id)
+        select(School.school_name, District.name, func.count(Vote.id))
+        .join(Vote, Vote.school_id == School.id)
+        .join(District, School.district_id == District.id)
+        .group_by(School.id)
         .order_by(func.count(Vote.id).desc())
     )
     rows = (await session.execute(stmt)).all()
-    top: list[tuple[str, int, str, str]] = [
-        (r[0], int(r[3]), r[1], r[2]) for r in rows
-    ]
+    top: list[tuple[str, int, str]] = [(r[0], int(r[2]), r[1]) for r in rows]
     return total, top
 
 
 async def votes_for_export(session: AsyncSession) -> list[Vote]:
     stmt = (
         select(Vote)
-        .options(selectinload(Vote.director).selectinload(Director.district), selectinload(Vote.user))
+        .options(selectinload(Vote.school).selectinload(School.district), selectinload(Vote.user))
         .order_by(Vote.created_at.asc())
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
 
 
-async def directors_with_vote_counts(session: AsyncSession) -> list[tuple[Director, int]]:
+async def schools_with_vote_counts(session: AsyncSession) -> list[tuple[School, int]]:
     cnt = func.count(Vote.id).label("vote_count")
     stmt = (
-        select(Director, cnt)
-        .options(selectinload(Director.district))
-        .outerjoin(Vote, Vote.director_id == Director.id)
-        .group_by(Director.id)
-        .order_by(cnt.desc(), Director.sort_order, Director.full_name)
+        select(School, cnt)
+        .options(selectinload(School.district))
+        .outerjoin(Vote, Vote.school_id == School.id)
+        .group_by(School.id)
+        .order_by(cnt.desc(), School.sort_order, School.school_name)
     )
     rows = (await session.execute(stmt)).all()
     return [(r[0], int(r[1])) for r in rows]
 
 
-async def count_votes_for_director(session: AsyncSession, director_id: int) -> int:
-    n = await session.scalar(select(func.count()).select_from(Vote).where(Vote.director_id == director_id))
+async def count_votes_for_school(session: AsyncSession, school_id: int) -> int:
+    n = await session.scalar(select(func.count()).select_from(Vote).where(Vote.school_id == school_id))
     return int(n or 0)
 
 
@@ -273,7 +271,7 @@ async def delete_district(session: AsyncSession, district_id: int) -> bool:
     if not d:
         return False
     n = await session.scalar(
-        select(func.count()).select_from(Director).where(Director.district_id == district_id)
+        select(func.count()).select_from(School).where(School.district_id == district_id)
     )
     if int(n or 0) > 0:
         return False
@@ -282,55 +280,50 @@ async def delete_district(session: AsyncSession, district_id: int) -> bool:
     return True
 
 
-async def create_director(
+async def create_school(
     session: AsyncSession,
     district_id: int,
-    full_name: str,
     school_name: str,
     sort_order: int = 0,
-) -> Director:
-    dr = Director(
+) -> School:
+    sch = School(
         district_id=district_id,
-        full_name=full_name.strip(),
         school_name=school_name.strip(),
         sort_order=sort_order,
     )
-    session.add(dr)
+    session.add(sch)
     await session.flush()
-    return dr
+    return sch
 
 
-async def update_director(
+async def update_school(
     session: AsyncSession,
-    director_id: int,
+    school_id: int,
     *,
     district_id: int | None = None,
-    full_name: str | None = None,
     school_name: str | None = None,
     sort_order: int | None = None,
-) -> Director | None:
-    dr = await get_director(session, director_id)
-    if not dr:
+) -> School | None:
+    sch = await get_school(session, school_id)
+    if not sch:
         return None
     if district_id is not None:
-        dr.district_id = district_id
-    if full_name is not None:
-        dr.full_name = full_name.strip()
+        sch.district_id = district_id
     if school_name is not None:
-        dr.school_name = school_name.strip()
+        sch.school_name = school_name.strip()
     if sort_order is not None:
-        dr.sort_order = sort_order
+        sch.sort_order = sort_order
     await session.flush()
-    return dr
+    return sch
 
 
-async def delete_director(session: AsyncSession, director_id: int) -> bool:
-    dr = await get_director(session, director_id)
-    if not dr:
+async def delete_school(session: AsyncSession, school_id: int) -> bool:
+    sch = await get_school(session, school_id)
+    if not sch:
         return False
-    if await count_votes_for_director(session, director_id) > 0:
+    if await count_votes_for_school(session, school_id) > 0:
         return False
-    await session.delete(dr)
+    await session.delete(sch)
     await session.flush()
     return True
 
@@ -406,7 +399,7 @@ async def admin_dashboard_bundle(session: AsyncSession) -> dict:
     users_voted = await admin_count_users_voted(session)
     no_vote = await admin_count_complete_without_vote(session)
     incomplete = max(0, total_users - users_complete)
-    top = await admin_top_directors(session, 10)
+    top = await admin_top_schools(session, 10)
     users_series, votes_series = await admin_daily_counts(session, days=7)
     return {
         "total_users": total_users,
@@ -421,21 +414,21 @@ async def admin_dashboard_bundle(session: AsyncSession) -> dict:
         "users_voted": users_voted,
         "users_no_vote": no_vote,
         "users_incomplete": incomplete,
-        "top_directors": top,
+        "top_schools": top,
         "chart_users": users_series,
         "chart_votes": votes_series,
     }
 
 
-async def admin_top_directors(session: AsyncSession, limit: int = 10) -> list[tuple[Director, int]]:
-    rows = await directors_with_vote_counts(session)
+async def admin_top_schools(session: AsyncSession, limit: int = 10) -> list[tuple[School, int]]:
+    rows = await schools_with_vote_counts(session)
     rows = [(d, c) for d, c in rows if c > 0]
-    rows.sort(key=lambda x: (-x[1], x[0].sort_order, x[0].full_name or ""))
+    rows.sort(key=lambda x: (-x[1], x[0].sort_order, x[0].school_name or ""))
     return rows[:limit]
 
 
-async def admin_count_directors_total(session: AsyncSession) -> int:
-    return int(await session.scalar(select(func.count()).select_from(Director)) or 0)
+async def admin_count_schools_total(session: AsyncSession) -> int:
+    return int(await session.scalar(select(func.count()).select_from(School)) or 0)
 
 
 async def admin_count_districts_total(session: AsyncSession) -> int:
@@ -443,18 +436,18 @@ async def admin_count_districts_total(session: AsyncSession) -> int:
 
 
 async def admin_district_stats_for_bot(session: AsyncSession) -> list[tuple[str, int, int]]:
-    """(tuman nomi, maktab/direktorlar soni, shu tumandagi ovozlar)."""
+    """(tuman nomi, maktablar soni, shu tumandagi ovozlar)."""
     districts = await list_districts(session)
     rows: list[tuple[str, int, int]] = []
     for d in districts:
-        n_dir = await count_directors_in_district(session, d.id)
+        n_sch = await count_schools_in_district(session, d.id)
         nv = await session.scalar(
             select(func.count(Vote.id))
             .select_from(Vote)
-            .join(Director, Vote.director_id == Director.id)
-            .where(Director.district_id == d.id)
+            .join(School, Vote.school_id == School.id)
+            .where(School.district_id == d.id)
         )
-        rows.append((d.name, n_dir, int(nv or 0)))
+        rows.append((d.name, n_sch, int(nv or 0)))
     return rows
 
 
@@ -508,10 +501,10 @@ async def admin_daily_counts(
 
 
 async def admin_districts_with_school_counts(session: AsyncSession) -> list[tuple[District, int]]:
-    cnt = func.count(Director.id).label("n")
+    cnt = func.count(School.id).label("n")
     stmt = (
         select(District, cnt)
-        .outerjoin(Director, Director.district_id == District.id)
+        .outerjoin(School, School.district_id == District.id)
         .group_by(District.id)
         .order_by(District.sort_order, District.name)
     )
@@ -519,29 +512,29 @@ async def admin_districts_with_school_counts(session: AsyncSession) -> list[tupl
     return [(r[0], int(r[1])) for r in rows]
 
 
-async def admin_list_directors_in_district(
+async def admin_list_schools_in_district(
     session: AsyncSession,
     district_id: int,
-) -> list[tuple[Director, int]]:
+) -> list[tuple[School, int]]:
     cnt = func.count(Vote.id).label("vote_count")
     stmt = (
-        select(Director, cnt)
-        .options(selectinload(Director.district))
-        .outerjoin(Vote, Vote.director_id == Director.id)
-        .where(Director.district_id == district_id)
-        .group_by(Director.id)
-        .order_by(Director.school_name, Director.id)
+        select(School, cnt)
+        .options(selectinload(School.district))
+        .outerjoin(Vote, Vote.school_id == School.id)
+        .where(School.district_id == district_id)
+        .group_by(School.id)
+        .order_by(School.school_name, School.id)
     )
     rows = (await session.execute(stmt)).all()
     return [(r[0], int(r[1])) for r in rows]
 
 
-async def admin_list_directors_for_dropdown(session: AsyncSession) -> list[Director]:
-    """Foydalanuvchilar filtri uchun direktorlar ro'yxati."""
+async def admin_list_schools_for_dropdown(session: AsyncSession) -> list[School]:
+    """Foydalanuvchilar filtri uchun maktablar ro'yxati."""
     stmt = (
-        select(Director)
-        .options(selectinload(Director.district))
-        .order_by(Director.district_id, Director.school_name, Director.id)
+        select(School)
+        .options(selectinload(School.district))
+        .order_by(School.district_id, School.school_name, School.id)
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
@@ -556,23 +549,23 @@ async def admin_list_users_page(
     order: str,
     page: int,
     per_page: int = 30,
-    director_id: int | None = None,
+    school_id: int | None = None,
 ) -> tuple[list[User], int]:
-    """status: all | complete | voted | no_vote | incomplete; director_id — shu direktorga ovoz berganlar."""
+    """status: all | complete | voted | no_vote | incomplete; school_id — shu maktabga ovoz berganlar."""
     stmt = select(User).options(
-        selectinload(User.vote).selectinload(Vote.director).selectinload(Director.district)
+        selectinload(User.vote).selectinload(Vote.school).selectinload(School.district)
     )
     count_base = select(func.count()).select_from(User)
 
     vote_exists = exists().where(Vote.user_telegram_id == User.telegram_id)
 
-    if director_id is not None:
-        voted_for_dir = exists().where(
+    if school_id is not None:
+        voted_for_school = exists().where(
             Vote.user_telegram_id == User.telegram_id,
-            Vote.director_id == director_id,
+            Vote.school_id == school_id,
         )
-        stmt = stmt.where(voted_for_dir)
-        count_base = count_base.where(voted_for_dir)
+        stmt = stmt.where(voted_for_school)
+        count_base = count_base.where(voted_for_school)
 
     if status == "complete":
         stmt = stmt.where(_user_complete_expr())
@@ -618,7 +611,7 @@ async def admin_list_users_page(
     return rows, total
 
 
-async def admin_list_directors_page(
+async def admin_list_schools_page(
     session: AsyncSession,
     *,
     district_id: int | None,
@@ -627,41 +620,39 @@ async def admin_list_directors_page(
     order: str,
     page: int,
     per_page: int = 25,
-) -> tuple[list[tuple[Director, int]], int]:
+) -> tuple[list[tuple[School, int]], int]:
     conditions = []
     if district_id is not None:
-        conditions.append(Director.district_id == district_id)
+        conditions.append(School.district_id == district_id)
     q = (search or "").strip()
     if q:
         like = f"%{q}%"
-        conditions.append(or_(Director.school_name.ilike(like), Director.full_name.ilike(like)))
+        conditions.append(School.school_name.ilike(like))
     where_clause = and_(*conditions) if conditions else true()
 
-    total = int(await session.scalar(select(func.count()).select_from(Director).where(where_clause)) or 0)
+    total = int(await session.scalar(select(func.count()).select_from(School).where(where_clause)) or 0)
 
     vc = func.count(Vote.id).label("vc")
     stmt = (
-        select(Director, vc)
-        .options(selectinload(Director.district))
-        .outerjoin(Vote, Vote.director_id == Director.id)
+        select(School, vc)
+        .options(selectinload(School.district))
+        .outerjoin(Vote, Vote.school_id == School.id)
         .where(where_clause)
-        .group_by(Director.id)
+        .group_by(School.id)
     )
 
     sort_key = sort or "vote_count"
     desc = order.lower() != "asc"
     if sort_key == "school_name":
-        ob = Director.school_name.desc() if desc else Director.school_name.asc()
-    elif sort_key == "full_name":
-        ob = Director.full_name.desc() if desc else Director.full_name.asc()
+        ob = School.school_name.desc() if desc else School.school_name.asc()
     elif sort_key == "sort_order":
-        ob = Director.sort_order.desc() if desc else Director.sort_order.asc()
+        ob = School.sort_order.desc() if desc else School.sort_order.asc()
     elif sort_key == "district":
-        ob = Director.district_id.desc() if desc else Director.district_id.asc()
+        ob = School.district_id.desc() if desc else School.district_id.asc()
     else:
         ob = vc.desc() if desc else vc.asc()
 
-    stmt = stmt.order_by(ob, Director.id.asc())
+    stmt = stmt.order_by(ob, School.id.asc())
     page = max(0, page)
     stmt = stmt.offset(page * per_page).limit(per_page)
     rows = (await session.execute(stmt)).all()

@@ -4,24 +4,23 @@
 <div class="page-head">
   <div>
     <h1>{{ district.name }}</h1>
-    <p>Shu tumandagi maktablar va direktorlar (ovozlar soni bilan).</p>
+    <p>Shu tumandagi maktablar (ovozlar soni bilan).</p>
   </div>
   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
     <a href="/districts" class="btn btn-ghost">← Tumanlar</a>
     <a href="/districts/{{ district.id }}/edit" class="btn btn-ghost">Tumanni tahrirlash</a>
-    <a href="/directors/new" class="btn btn-primary">Maktab qo'shish</a>
+    <a href="/schools/new" class="btn btn-primary">Maktab qo'shish</a>
   </div>
 </div>
 
 <div class="card">
-  <h2>Maktablar va direktorlar</h2>
+  <h2>Maktablar</h2>
   {% if rows %}
   <div class="table-wrap">
     <table class="data">
       <thead>
         <tr>
           <th>Maktab</th>
-          <th>Direktor</th>
           <th class="num">Tartib</th>
           <th class="num">Ovozlar</th>
           <th></th>
@@ -31,10 +30,9 @@
         {% for dr, vc in rows %}
         <tr>
           <td><strong>{{ dr.school_name }}</strong></td>
-          <td>{{ dr.full_name }}</td>
           <td class="num">{{ dr.sort_order }}</td>
           <td class="num">{{ vc }}</td>
-          <td><a href="/directors/{{ dr.id }}/edit">Tahrir</a></td>
+          <td><a href="/schools/{{ dr.id }}/edit">Tahrir</a></td>
         </tr>
         {% endfor %}
       </tbody>

@@ -30,7 +30,7 @@ def instagram_confirm_keyboard(url: str) -> InlineKeyboardMarkup:
                     callback_data="ig:confirm",
                 )
             ],
-        ]
+        ],
     )
 
 
@@ -47,34 +47,34 @@ def channel_keyboard(join_url: str) -> InlineKeyboardMarkup:
     )
 
 
-def vote_start_deeplink_url(bot_username: str, director_id: int) -> str:
+def vote_start_deeplink_url(bot_username: str, school_id: int) -> str:
     """Tashqi ulashuvlar uchun: t.me/Bot?start=d{id}"""
     u = bot_username.lstrip("@")
-    return f"https://t.me/{u}?start=d{director_id}"
+    return f"https://t.me/{u}?start=d{school_id}"
 
 
-def director_detail_keyboard(
-    director_id: int,
+def school_detail_keyboard(
+    school_id: int,
     district_id: int,
     list_page: int,
 ) -> InlineKeyboardMarkup:
     """Batafsil: ovoz (callback), inline ulashish, ro'yxatga."""
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Ovoz berish", callback_data=f"vok:{director_id}")],
+            [InlineKeyboardButton(text="✅ Ovoz berish", callback_data=f"vok:{school_id}")],
             [
                 InlineKeyboardButton(
                     text="📤 Ulashish",
-                    switch_inline_query=f"d{director_id}",
+                    switch_inline_query=f"d{school_id}",
                 )
             ],
             [InlineKeyboardButton(text="🔙 Ro'yxatga", callback_data=f"pg:{district_id}:{list_page}")],
-        ]
+        ],
     )
 
 
 def schools_page_keyboard(
-    directors: list,
+    schools: list,
     district_id: int,
     page: int,
     total_count: int,
@@ -82,10 +82,10 @@ def schools_page_keyboard(
 ) -> InlineKeyboardMarkup:
     """Maktab tugmalari + sahifa (20 tadan) + boshqa tuman."""
     rows: list[list[InlineKeyboardButton]] = []
-    for dr in directors:
-        label = (dr.school_name or "").strip()[:60] or f"#{dr.id}"
+    for sch in schools:
+        label = (sch.school_name or "").strip()[:60] or f"#{sch.id}"
         rows.append(
-            [InlineKeyboardButton(text=f"🏫 {label}", callback_data=f"dt:{dr.id}:{district_id}:{page}")]
+            [InlineKeyboardButton(text=f"🏫 {label}", callback_data=f"dt:{sch.id}:{district_id}:{page}")]
         )
 
     total_pages = max(1, (total_count + per_page - 1) // per_page)

@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.strategy import FSMStrategy
 
 from config import get_settings
-from database.seed import seed_directors_from_csv_if_empty, seed_districts_if_empty
+from database.seed import seed_districts_if_empty, seed_schools_from_csv_if_empty
 from database.session import async_session_maker, init_db
 from handlers import setup_routers
 from middlewares.db import DbSessionMiddleware
@@ -35,19 +35,19 @@ async def main() -> None:
     await init_db()
     async with async_session_maker() as session:
         d = await seed_districts_if_empty(session)
-        n = await seed_directors_from_csv_if_empty(session)
+        n = await seed_schools_from_csv_if_empty(session)
         await session.commit()
         if d:
             logger.info("Seed: %s ta tuman yuklandi.", d)
         if n:
-            logger.info("Seed: %s ta direktor yuklandi.", n)
+            logger.info("Seed: %s ta maktab yuklandi.", n)
 
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     # GLOBAL_USER: tuman filtri shaxsiy chatda saqlanadi, @bot qidiruv esa boshqa chatda —
-    # USER_IN_CHAT bo'lsa FSM kaliti mos kelmaydi va direktorlar chiqmay qolardi.
+    # USER_IN_CHAT bo'lsa FSM kaliti mos kelmaydi va maktablar chiqmay qolardi.
     dp = Dispatcher(storage=MemoryStorage(), fsm_strategy=FSMStrategy.GLOBAL_USER)
     dp.update.middleware(DbSessionMiddleware())
 

@@ -7,7 +7,7 @@
 <div class="page-head">
   <div>
     <h1>Boshqaruv paneli</h1>
-    <p>So'rovnoma bo'yicha tezkor statistika, TOP direktorlar va oxirgi 7 kun dinamikasi.</p>
+    <p>So'rovnoma bo'yicha tezkor statistika, TOP maktablar va oxirgi 7 kun dinamikasi.</p>
   </div>
 </div>
 
@@ -86,15 +86,15 @@
 </div>
 
 <div class="card">
-  <h2>TOP 10 — ovozlar soni bo'yicha direktorlar</h2>
-  {% if dash.top_directors %}
+  <h2>TOP 10 — ovozlar soni bo'yicha maktablar</h2>
+  {% if dash.top_schools %}
   <ol class="top-list">
-    {% for d, cnt in dash.top_directors %}
+    {% for d, cnt in dash.top_schools %}
     <li>
       <span class="top-rank">{{ loop.index }}</span>
       <div>
-        <strong>{{ d.full_name }}</strong><br>
-        <span style="color:var(--muted);font-size:0.85rem;">{{ d.school_name }} · {{ d.district.name if d.district else '—' }}</span>
+        <strong>{{ d.school_name }}</strong><br>
+        <span style="color:var(--muted);font-size:0.85rem;">{{ d.district.name if d.district else '—' }}</span>
       </div>
       <span class="top-votes">{{ cnt }}</span>
     </li>

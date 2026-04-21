@@ -1,4 +1,4 @@
-"""Birinchi ishga tushganda: Buxoro tumanlari va ixtiyoriy CSV dan direktorlar."""
+"""Birinchi ishga tushganda: Buxoro tumanlari va ixtiyoriy CSV dan maktablar."""
 
 import csv
 import logging
@@ -7,11 +7,15 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Director, District
+from database.models import District, School
 
 logger = logging.getLogger(__name__)
 
-CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "directors_import.csv"
+CSV_PRIMARY = Path(__file__).resolve().parent.parent / "data" / "schools.csv"
+CSV_ALTERNATES = (
+    Path(__file__).resolve().parent.parent / "data" / "schools_import.csv",
+    Path(__file__).resolve().parent.parent / "data" / "directors_import.csv",
+)
 
 # Buxoro viloyati tumanlari (so'rovnoma faqat shu hududda)
 BUXORO_DISTRICTS: list[tuple[str, str, int]] = [
@@ -44,12 +48,62 @@ async def seed_districts_if_empty(session: AsyncSession) -> int:
     return inserted
 
 
-async def seed_directors_from_csv_if_empty(session: AsyncSession) -> int:
-    n = await session.scalar(select(func.count()).select_from(Director))
+def _csv_path() -> Path | None:
+    if CSV_PRIMARY.exists():
+        return CSV_PRIMARY
+    for p in CSV_ALTERNATES:
+        if p.exists():
+            return p
+    return None
+
+
+def _detect_csv_delimiter(first_nonempty_line: str) -> str:
+    """Excel/O‘zbek CSV ko‘pincha ';' bilan; DictReader standart ','."""
+    line = first_nonempty_line.strip()
+    if not line:
+        return ","
+    semi = line.count(";")
+    comma = line.count(",")
+    if semi > 0 and semi >= comma:
+        return ";"
+    return ","
+
+
+def _normalize_row_keys(row: dict[str, str]) -> dict[str, str]:
+    """Bom yoki bo'sh joy bilan kelgan ustun nomlarini school_name / district_code ga yaqinlashtirish."""
+    out: dict[str, str] = {}
+    for k, v in row.items():
+        if k is None:
+            continue
+        key = k.strip().lower().replace("\ufeff", "")
+        out[key] = v
+    # keng tarqalgan sinonimlar
+    aliases = {
+        "maktab": "school_name",
+        "maktab_nomi": "school_name",
+        "name": "school_name",
+        "tuman_kodi": "district_code",
+        "region_code": "district_code",
+        "kod": "district_code",
+    }
+    merged = dict(out)
+    for old, new in aliases.items():
+        if old in merged and new not in merged:
+            merged[new] = merged[old]
+    return merged
+
+
+async def seed_schools_from_csv_if_empty(session: AsyncSession) -> int:
+    n = await session.scalar(select(func.count()).select_from(School))
     if n and int(n) > 0:
         return 0
-    if not CSV_PATH.exists():
-        logger.warning("CSV topilmadi: %s — direktorlar web-admin orqali kiritiladi.", CSV_PATH)
+    path = _csv_path()
+    if not path:
+        logger.warning(
+            "CSV topilmadi (kutilgan: %s yoki %s) — maktablar web-admin orqali kiritiladi.",
+            CSV_PRIMARY,
+            CSV_ALTERNATES[0],
+        )
         return 0
 
     districts_by_code: dict[str, District] = {}
@@ -58,27 +112,42 @@ async def seed_directors_from_csv_if_empty(session: AsyncSession) -> int:
         districts_by_code[d.code] = d
 
     inserted = 0
-    with CSV_PATH.open(encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
+    skipped_no_dist = 0
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        first = ""
+        pos = f.tell()
+        for raw in f:
+            if raw.strip():
+                first = raw
+                break
+        f.seek(pos)
+        delim = _detect_csv_delimiter(first)
+        reader = csv.DictReader(f, delimiter=delim)
         for row in reader:
-            full_name = (row.get("full_name") or "").strip()
+            row = _normalize_row_keys({k or "": (v or "") for k, v in row.items()})
             school_name = (row.get("school_name") or "").strip()
             district_code = (row.get("district_code") or "").strip()
-            if not full_name or not school_name or not district_code:
+            if not school_name or not district_code:
                 continue
             dist = districts_by_code.get(district_code)
             if not dist:
+                skipped_no_dist += 1
                 logger.warning("CSV: tuman kodi '%s' topilmadi, qator o'tkazib yuborildi.", district_code)
                 continue
-            dr = Director(
+            sch = School(
                 district_id=dist.id,
-                full_name=full_name,
                 school_name=school_name,
                 sort_order=int(row.get("sort_order") or 0),
             )
-            session.add(dr)
+            session.add(sch)
             inserted += 1
     await session.flush()
     if inserted:
-        logger.info("CSV dan %s ta direktor yuklandi.", inserted)
+        logger.info("CSV dan %s ta maktab yuklandi (%s, delimiter=%r).", inserted, path.name, delim)
+    elif path.stat().st_size > 10:
+        logger.warning(
+            "CSV fayl bor (%s) lekin 0 ta import — delimiter (; yoki ,), ustunlar "
+            "(school_name, district_code) yoki tuman kodlari seed bilan mosligini tekshiring.",
+            path.name,
+        )
     return inserted

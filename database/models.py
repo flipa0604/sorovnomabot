@@ -22,20 +22,19 @@ class District(Base):
     name: Mapped[str] = mapped_column(String(256))
     sort_order: Mapped[int] = mapped_column(default=0)
 
-    directors: Mapped[list["Director"]] = relationship(back_populates="district")
+    schools: Mapped[list["School"]] = relationship(back_populates="district")
 
 
-class Director(Base):
-    __tablename__ = "directors"
+class School(Base):
+    __tablename__ = "schools"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     district_id: Mapped[int] = mapped_column(ForeignKey("districts.id", ondelete="RESTRICT"), index=True)
-    full_name: Mapped[str] = mapped_column(String(512), index=True)
-    school_name: Mapped[str] = mapped_column(String(512))
+    school_name: Mapped[str] = mapped_column(String(512), index=True)
     sort_order: Mapped[int] = mapped_column(default=0)
 
-    district: Mapped["District"] = relationship(back_populates="directors")
-    votes: Mapped[list["Vote"]] = relationship(back_populates="director")
+    district: Mapped["District"] = relationship(back_populates="schools")
+    votes: Mapped[list["Vote"]] = relationship(back_populates="school")
 
 
 class User(Base):
@@ -61,8 +60,8 @@ class Vote(Base):
         ForeignKey("users.telegram_id", ondelete="CASCADE"),
         unique=True,
     )
-    director_id: Mapped[int] = mapped_column(ForeignKey("directors.id", ondelete="RESTRICT"))
+    school_id: Mapped[int] = mapped_column(ForeignKey("schools.id", ondelete="RESTRICT"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="vote")
-    director: Mapped["Director"] = relationship(back_populates="votes")
+    school: Mapped["School"] = relationship(back_populates="votes")

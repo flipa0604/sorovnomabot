@@ -4,16 +4,16 @@
 <div class="page-head">
   <div>
     <h1>Telegram foydalanuvchilar</h1>
-    <p>Ro'yxatdan o'tish, ovoz holati; qidiruv, holat va <b>ovoz berilgan direktor</b> bo'yicha filtr.</p>
+    <p>Ro'yxatdan o'tish, ovoz holati; qidiruv, holat va <b>ovoz berilgan maktab</b> bo'yicha filtr.</p>
   </div>
 </div>
 
 <div class="card">
-  {% if filter_director %}
+  {% if filter_school %}
   <p style="color:var(--muted);font-size:0.9rem;margin:0 0 1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
     <strong>Ovoz filtri:</strong>
-    {% if filter_director.district %}{{ filter_director.district.name }}{% else %}—{% endif %}
-    — {{ filter_director.school_name }} — <strong>{{ filter_director.full_name }}</strong>
+    {% if filter_school.district %}{{ filter_school.district.name }}{% else %}—{% endif %}
+    — <strong>{{ filter_school.school_name }}</strong>
     · <a href="/users">Filtrni olib tashlash</a>
   </p>
   {% endif %}
@@ -33,12 +33,12 @@
       </select>
     </div>
     <div class="field field-grow" style="min-width:200px;max-width:380px;">
-      <label>Ovoz direktori</label>
-      <select name="director_id">
+      <label>Ovoz maktabi</label>
+      <select name="school_id">
         <option value="">— Hammasi —</option>
-        {% for d in director_choices %}
-        <option value="{{ d.id }}" {% if director_id == d.id %}selected{% endif %}>
-          {% if d.district %}{{ d.district.name }} — {% endif %}{{ d.school_name }} ({{ d.full_name }})
+        {% for d in school_choices %}
+        <option value="{{ d.id }}" {% if school_id == d.id %}selected{% endif %}>
+          {% if d.district %}{{ d.district.name }} — {% endif %}{{ d.school_name }}
         </option>
         {% endfor %}
       </select>
@@ -96,13 +96,13 @@
             {% endif %}
           </td>
           <td>
-            {% if u.vote and u.vote.director %}
-            <strong>{{ u.vote.director.full_name }}</strong><br>
+            {% if u.vote and u.vote.school %}
+            <strong>{{ u.vote.school.school_name }}</strong><br>
             <span style="color:var(--muted);font-size:0.8rem;">
-              {% if u.vote.director.district %}<b>{{ u.vote.director.district.name }}</b> · {% endif %}{{ u.vote.director.school_name }}
+              {% if u.vote.school.district %}<b>{{ u.vote.school.district.name }}</b>{% endif %}
             </span>
             {% elif u.vote %}
-              #{{ u.vote.director_id }}
+              #{{ u.vote.school_id }}
             {% else %}
               —
             {% endif %}

@@ -1,19 +1,19 @@
 {% extends "layout.html" %}
-{% block title %}Direktorlar — admin{% endblock %}
+{% block title %}Maktablar — admin{% endblock %}
 {% block inner %}
 <div class="page-head">
   <div>
-    <h1>Maktab direktorlari</h1>
+    <h1>Maktablar</h1>
     <p>Qidiruv, tuman bo'yicha filtr, tartiblash va sahifalash.</p>
   </div>
-  <a href="/directors/new" class="btn btn-primary">Yangi qator</a>
+  <a href="/schools/new" class="btn btn-primary">Yangi maktab</a>
 </div>
 
 <div class="card">
-  <form class="toolbar" method="get" action="/directors">
+  <form class="toolbar" method="get" action="/schools">
     <div class="field-grow">
       <label>Qidiruv</label>
-      <input type="search" name="q" value="{{ q }}" placeholder="Maktab yoki direktor...">
+      <input type="search" name="q" value="{{ q }}" placeholder="Maktab nomi...">
     </div>
     <div class="field">
       <label>Tuman</label>
@@ -38,19 +38,16 @@
         <tr>
           <th class="num">ID</th>
           <th>
-            <a class="sort-link" href="/directors?{{ sort_urls['school_name'] }}">Maktab</a>
+            <a class="sort-link" href="/schools?{{ sort_urls['school_name'] }}">Maktab</a>
           </th>
           <th>
-            <a class="sort-link" href="/directors?{{ sort_urls['full_name'] }}">Direktor</a>
-          </th>
-          <th>
-            <a class="sort-link" href="/directors?{{ sort_urls['district'] }}">Tuman</a>
+            <a class="sort-link" href="/schools?{{ sort_urls['district'] }}">Tuman</a>
           </th>
           <th class="num">
-            <a class="sort-link" href="/directors?{{ sort_urls['sort_order'] }}">Tartib</a>
+            <a class="sort-link" href="/schools?{{ sort_urls['sort_order'] }}">Tartib</a>
           </th>
           <th class="num">
-            <a class="sort-link" href="/directors?{{ sort_urls['vote_count'] }}">Ovozlar</a>
+            <a class="sort-link" href="/schools?{{ sort_urls['vote_count'] }}">Ovozlar</a>
           </th>
           <th></th>
         </tr>
@@ -60,20 +57,19 @@
         <tr>
           <td class="num mono">{{ dr.id }}</td>
           <td>{{ dr.school_name }}</td>
-          <td>{{ dr.full_name }}</td>
           <td>{{ dr.district.name if dr.district else '—' }}</td>
           <td class="num">{{ dr.sort_order }}</td>
           <td class="num">
             {% if vc > 0 %}
-            <a href="/users?director_id={{ dr.id }}&amp;status=voted" title="Shu direktorga ovoz berganlar"><strong>{{ vc }}</strong></a>
+            <a href="/users?school_id={{ dr.id }}&amp;status=voted" title="Shu maktabga ovoz berganlar"><strong>{{ vc }}</strong></a>
             {% else %}
             <strong>0</strong>
             {% endif %}
           </td>
-          <td class="actions"><a href="/directors/{{ dr.id }}/edit">Tahrir</a></td>
+          <td class="actions"><a href="/schools/{{ dr.id }}/edit">Tahrir</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="7" style="color:var(--muted);">Natija yo'q.</td></tr>
+        <tr><td colspan="6" style="color:var(--muted);">Natija yo'q.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -81,11 +77,11 @@
 
   <div class="pagination">
     {% if page > 0 %}
-    <a href="/directors?{{ page_prev_qs }}">← Oldingi</a>
+    <a href="/schools?{{ page_prev_qs }}">← Oldingi</a>
     {% endif %}
     <span>Sahifa {{ page + 1 }} / {{ total_pages }} ({{ total }} qator)</span>
     {% if page < total_pages - 1 %}
-    <a href="/directors?{{ page_next_qs }}">Keyingi →</a>
+    <a href="/schools?{{ page_next_qs }}">Keyingi →</a>
     {% endif %}
   </div>
 </div>

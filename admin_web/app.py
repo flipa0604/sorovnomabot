@@ -60,18 +60,18 @@ def _flash_from_query(request: Request) -> tuple[str | None, str | None]:
         "district_added": "Tuman qo'shildi.",
         "district_saved": "Tuman saqlandi.",
         "district_deleted": "Tuman o'chirildi.",
-        "director_added": "Maktab / direktor qo'shildi.",
-        "director_saved": "Ma'lumotlar saqlandi.",
-        "director_deleted": "Qator o'chirildi.",
+        "school_added": "Maktab qo'shildi.",
+        "school_saved": "Ma'lumotlar saqlandi.",
+        "school_deleted": "Qator o'chirildi.",
     }
     err_map = {
         "district_has_schools": "Tumanda maktablar bor — avval ularni o'chiring yoki ko'chiring.",
-        "director_has_votes": "Ovoz yig'gan direktorni o'chirib bo'lmaydi.",
+        "school_has_votes": "Ovoz yig'gan maktabni o'chirib bo'lmaydi.",
     }
     return flash_map.get(msg or ""), err_map.get(err or "")
 
 
-def _directors_qs_parts(
+def _schools_qs_parts(
     q: str,
     district_id: int | None,
     sort: str,
@@ -93,16 +93,16 @@ def _directors_qs_parts(
     return items
 
 
-def _directors_sort_urls(
+def _schools_sort_urls(
     q: str,
     district_id: int | None,
     sort: str,
     order: str,
 ) -> dict[str, str]:
     out: dict[str, str] = {}
-    for col in ("school_name", "full_name", "district", "sort_order", "vote_count"):
+    for col in ("school_name", "district", "sort_order", "vote_count"):
         next_o = "asc" if (sort == col and order == "desc") else "desc"
-        out[col] = urlencode(_directors_qs_parts(q, district_id, col, next_o, 0))
+        out[col] = urlencode(_schools_qs_parts(q, district_id, col, next_o, 0))
     return out
 
 
@@ -112,15 +112,15 @@ def _users_qs_parts(
     sort: str,
     order: str,
     page: int,
-    director_id: int | None = None,
+    school_id: int | None = None,
 ) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
     if q.strip():
         items.append(("q", q.strip()))
     if status and status != "all":
         items.append(("status", status))
-    if director_id is not None:
-        items.append(("director_id", str(director_id)))
+    if school_id is not None:
+        items.append(("school_id", str(school_id)))
     items.extend([("sort", sort), ("order", order), ("page", str(page))])
     return items
 
@@ -130,12 +130,12 @@ def _users_sort_urls(
     status: str,
     sort: str,
     order: str,
-    director_id: int | None = None,
+    school_id: int | None = None,
 ) -> dict[str, str]:
     out: dict[str, str] = {}
     for col in ("telegram_id", "username", "full_name", "created_at"):
         next_o = "asc" if (sort == col and order == "desc") else "desc"
-        out[col] = urlencode(_users_qs_parts(q, status, col, next_o, 0, director_id))
+        out[col] = urlencode(_users_qs_parts(q, status, col, next_o, 0, school_id))
     return out
 
 
@@ -177,6 +177,13 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+@app.get("/directors", response_class=HTMLResponse, response_model=None)
+async def legacy_directors_list_redirect(request: Request) -> RedirectResponse:
+    """Eski havolalar /schools ga yo'naltiriladi."""
+    q = request.url.query
+    return RedirectResponse(f"/schools?{q}" if q else "/schools", status_code=302)
 
 
 @app.get("/login", response_class=HTMLResponse, response_model=None)
@@ -269,7 +276,7 @@ async def district_detail_page(
     d = await repo.get_district(session, district_id)
     if not d:
         raise HTTPException(404)
-    rows = await repo.admin_list_directors_in_district(session, district_id)
+    rows = await repo.admin_list_schools_in_district(session, district_id)
     flash, flash_err = _flash_from_query(request)
     return templates.TemplateResponse(
         "district_detail.html",
@@ -384,8 +391,8 @@ async def district_delete(
     return RedirectResponse("/districts?err=district_has_schools", status_code=302)
 
 
-@app.get("/directors", response_class=HTMLResponse, response_model=None)
-async def directors_table(
+@app.get("/schools", response_class=HTMLResponse, response_model=None)
+async def schools_table(
     request: Request,
     session: SessionDep,
     q: str = "",
@@ -397,12 +404,12 @@ async def directors_table(
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
     per_page = 25
-    allowed_sort = {"school_name", "full_name", "district", "sort_order", "vote_count"}
+    allowed_sort = {"school_name", "district", "sort_order", "vote_count"}
     if sort not in allowed_sort:
         sort = "vote_count"
     order = "asc" if order.lower() == "asc" else "desc"
     page = max(0, page)
-    rows, total = await repo.admin_list_directors_page(
+    rows, total = await repo.admin_list_schools_page(
         session,
         district_id=district_id,
         search=q,
@@ -414,7 +421,7 @@ async def directors_table(
     total_pages = max(1, (total + per_page - 1) // per_page)
     if page > total_pages - 1:
         page = total_pages - 1
-        rows, total = await repo.admin_list_directors_page(
+        rows, total = await repo.admin_list_schools_page(
             session,
             district_id=district_id,
             search=q,
@@ -423,16 +430,16 @@ async def directors_table(
             page=page,
             per_page=per_page,
         )
-    sort_urls = _directors_sort_urls(q, district_id, sort, order)
-    page_prev = urlencode(_directors_qs_parts(q, district_id, sort, order, max(0, page - 1)))
-    page_next = urlencode(_directors_qs_parts(q, district_id, sort, order, min(total_pages - 1, page + 1)))
+    sort_urls = _schools_sort_urls(q, district_id, sort, order)
+    page_prev = urlencode(_schools_qs_parts(q, district_id, sort, order, max(0, page - 1)))
+    page_next = urlencode(_schools_qs_parts(q, district_id, sort, order, min(total_pages - 1, page + 1)))
     districts = await repo.list_districts(session)
     flash, flash_err = _flash_from_query(request)
     return templates.TemplateResponse(
-        "directors.html",
+        "schools.html",
         {
             "request": request,
-            "nav": "directors",
+            "nav": "schools",
             "rows": rows,
             "districts": districts,
             "q": q,
@@ -460,7 +467,7 @@ async def users_table(
     sort: str = Query(default="created_at"),
     order: str = Query(default="desc"),
     page: int = Query(default=0, ge=0),
-    director_id: int | None = Query(default=None),
+    school_id: int | None = Query(default=None),
 ) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
@@ -473,10 +480,10 @@ async def users_table(
     if status not in allowed_status:
         status = "all"
     page = max(0, page)
-    director_choices = await repo.admin_list_directors_for_dropdown(session)
-    filter_director = await repo.get_director(session, director_id) if director_id is not None else None
-    if director_id is not None and not filter_director:
-        director_id = None
+    school_choices = await repo.admin_list_schools_for_dropdown(session)
+    filter_school = await repo.get_school(session, school_id) if school_id is not None else None
+    if school_id is not None and not filter_school:
+        school_id = None
 
     users, total = await repo.admin_list_users_page(
         session,
@@ -486,7 +493,7 @@ async def users_table(
         order=order,
         page=page,
         per_page=per_page,
-        director_id=director_id,
+        school_id=school_id,
     )
     total_pages = max(1, (total + per_page - 1) // per_page)
     if page > total_pages - 1:
@@ -499,11 +506,11 @@ async def users_table(
             order=order,
             page=page,
             per_page=per_page,
-            director_id=director_id,
+            school_id=school_id,
         )
-    sort_urls = _users_sort_urls(q, status, sort, order, director_id)
-    page_prev = urlencode(_users_qs_parts(q, status, sort, order, max(0, page - 1), director_id))
-    page_next = urlencode(_users_qs_parts(q, status, sort, order, min(total_pages - 1, page + 1), director_id))
+    sort_urls = _users_sort_urls(q, status, sort, order, school_id)
+    page_prev = urlencode(_users_qs_parts(q, status, sort, order, max(0, page - 1), school_id))
+    page_next = urlencode(_users_qs_parts(q, status, sort, order, min(total_pages - 1, page + 1), school_id))
     flash, flash_err = _flash_from_query(request)
     return templates.TemplateResponse(
         "users.html",
@@ -521,26 +528,26 @@ async def users_table(
             "sort_urls": sort_urls,
             "page_prev_qs": page_prev,
             "page_next_qs": page_next,
-            "director_id": director_id,
-            "director_choices": director_choices,
-            "filter_director": filter_director,
+            "school_id": school_id,
+            "school_choices": school_choices,
+            "filter_school": filter_school,
             "flash": flash,
             "flash_err": flash_err,
         },
     )
 
 
-@app.get("/directors/new", response_class=HTMLResponse, response_model=None)
-async def director_new_form(request: Request, session: SessionDep) -> HTMLResponse:
+@app.get("/schools/new", response_class=HTMLResponse, response_model=None)
+async def school_new_form(request: Request, session: SessionDep) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
     districts = await repo.list_districts(session)
     return templates.TemplateResponse(
-        "director_form.html",
+        "school_form.html",
         {
             "request": request,
-            "nav": "directors",
-            "director": None,
+            "nav": "schools",
+            "school": None,
             "districts": districts,
             "vote_count": 0,
             "error": None,
@@ -550,53 +557,52 @@ async def director_new_form(request: Request, session: SessionDep) -> HTMLRespon
     )
 
 
-@app.post("/directors/new", response_model=None)
-async def director_new(
+@app.post("/schools/new", response_model=None)
+async def school_new(
     request: Request,
     session: SessionDep,
     district_id: int = Form(),
-    full_name: str = Form(),
     school_name: str = Form(),
     sort_order: str = Form(default="0"),
 ) -> HTMLResponse | RedirectResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
     so = _parse_sort_order(sort_order)
-    if not full_name.strip() or not school_name.strip():
+    if not school_name.strip():
         districts = await repo.list_districts(session)
         return templates.TemplateResponse(
-            "director_form.html",
+            "school_form.html",
             {
                 "request": request,
-                "nav": "directors",
-                "director": None,
+                "nav": "schools",
+                "school": None,
                 "districts": districts,
                 "vote_count": 0,
-                "error": "Ism-familiya va maktab nomi majburiy.",
+                "error": "Maktab nomi majburiy.",
                 "flash": None,
                 "flash_err": None,
             },
             status_code=400,
         )
-    await repo.create_director(session, district_id, full_name, school_name, so)
-    return RedirectResponse("/directors?msg=director_added", status_code=302)
+    await repo.create_school(session, district_id, school_name, so)
+    return RedirectResponse("/schools?msg=school_added", status_code=302)
 
 
-@app.get("/directors/{director_id}/edit", response_class=HTMLResponse, response_model=None)
-async def director_edit_form(request: Request, session: SessionDep, director_id: int) -> HTMLResponse:
+@app.get("/schools/{school_id}/edit", response_class=HTMLResponse, response_model=None)
+async def school_edit_form(request: Request, session: SessionDep, school_id: int) -> HTMLResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
-    d = await repo.get_director(session, director_id)
+    d = await repo.get_school(session, school_id)
     if not d:
         raise HTTPException(404)
     districts = await repo.list_districts(session)
-    vc = await repo.count_votes_for_director(session, director_id)
+    vc = await repo.count_votes_for_school(session, school_id)
     return templates.TemplateResponse(
-        "director_form.html",
+        "school_form.html",
         {
             "request": request,
-            "nav": "directors",
-            "director": d,
+            "nav": "schools",
+            "school": d,
             "districts": districts,
             "vote_count": vc,
             "error": None,
@@ -606,56 +612,54 @@ async def director_edit_form(request: Request, session: SessionDep, director_id:
     )
 
 
-@app.post("/directors/{director_id}/edit", response_model=None)
-async def director_edit(
+@app.post("/schools/{school_id}/edit", response_model=None)
+async def school_edit(
     request: Request,
     session: SessionDep,
-    director_id: int,
+    school_id: int,
     district_id: int = Form(),
-    full_name: str = Form(),
     school_name: str = Form(),
     sort_order: str = Form(default="0"),
 ) -> HTMLResponse | RedirectResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
     so = _parse_sort_order(sort_order)
-    if not full_name.strip() or not school_name.strip():
-        d = await repo.get_director(session, director_id)
+    if not school_name.strip():
+        d = await repo.get_school(session, school_id)
         districts = await repo.list_districts(session)
-        vc = await repo.count_votes_for_director(session, director_id)
+        vc = await repo.count_votes_for_school(session, school_id)
         return templates.TemplateResponse(
-            "director_form.html",
+            "school_form.html",
             {
                 "request": request,
-                "nav": "directors",
-                "director": d,
+                "nav": "schools",
+                "school": d,
                 "districts": districts,
                 "vote_count": vc,
-                "error": "Ism-familiya va maktab nomi majburiy.",
+                "error": "Maktab nomi majburiy.",
                 "flash": None,
                 "flash_err": None,
             },
             status_code=400,
         )
-    await repo.update_director(
+    await repo.update_school(
         session,
-        director_id,
+        school_id,
         district_id=district_id,
-        full_name=full_name,
         school_name=school_name,
         sort_order=so,
     )
-    return RedirectResponse("/directors?msg=director_saved", status_code=302)
+    return RedirectResponse("/schools?msg=school_saved", status_code=302)
 
 
-@app.post("/directors/{director_id}/delete", response_model=None)
-async def director_delete(request: Request, session: SessionDep, director_id: int) -> RedirectResponse:
+@app.post("/schools/{school_id}/delete", response_model=None)
+async def school_delete(request: Request, session: SessionDep, school_id: int) -> RedirectResponse:
     if not _admin_session_ok(request):
         return RedirectResponse("/login", status_code=302)
-    ok = await repo.delete_director(session, director_id)
+    ok = await repo.delete_school(session, school_id)
     if ok:
-        return RedirectResponse("/directors?msg=director_deleted", status_code=302)
-    return RedirectResponse("/directors?err=director_has_votes", status_code=302)
+        return RedirectResponse("/schools?msg=school_deleted", status_code=302)
+    return RedirectResponse("/schools?err=school_has_votes", status_code=302)
 
 
 class TgWebAppAuthBody(BaseModel):

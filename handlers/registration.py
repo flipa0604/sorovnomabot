@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Contact, Message, ReplyKeyboardRemove
 from config import get_settings
 from database import repositories as repo
 from handlers.voting import offer_vote_from_start_payload
-from utils.deeplink import parse_director_start_payload
+from utils.deeplink import parse_school_start_payload
 from utils.keyboards import contact_keyboard, district_filter_keyboard, instagram_confirm_keyboard
 from utils.phone import normalize_phone
 from utils.states import Registration, Voting
@@ -57,7 +57,7 @@ async def enter_voting_stage(
     await message.answer(
         "🗳 <b>Ovoz berish</b>\n\n"
         "1) Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n\n"
-        "2) Ro'yxatdan maktabni tanlang va shu maktab direktoriga ovoz bering.\n\n"
+        "2) Ro'yxatdan maktabni tanlang va shu maktabga ovoz bering.\n\n"
         "ℹ️ Faqat bitta ovoz bera olasiz!",
         reply_markup=district_filter_keyboard(districts),
     )
@@ -89,13 +89,13 @@ async def cmd_start(
         message.from_user.full_name,
     )
 
-    director_id = parse_director_start_payload(command.args)
+    school_id = parse_school_start_payload(command.args)
 
     if await user_is_channel_member(bot, uid):
         await repo.set_user_flags(session, uid, channel_ok=True)
         u = await repo.get_user(session, uid)
-        if director_id is not None and u and u.instagram_ok and u.phone_normalized:
-            await offer_vote_from_start_payload(message, session, state, director_id)
+        if school_id is not None and u and u.instagram_ok and u.phone_normalized:
+            await offer_vote_from_start_payload(message, session, state, school_id)
             return
         if u and u.instagram_ok and u.phone_normalized:
             await enter_voting_stage(message, session, state, uid, bot)

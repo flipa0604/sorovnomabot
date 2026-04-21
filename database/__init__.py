@@ -1,13 +1,9 @@
-from database.models import Base, Director, District, User, Vote
-from database.session import async_session_maker, engine, init_db
+from database.models import Base, District, School, User, Vote
 
 __all__ = [
     "Base",
-    "Director",
     "District",
+    "School",
     "User",
     "Vote",
-    "async_session_maker",
-    "engine",
-    "init_db",
 ]
