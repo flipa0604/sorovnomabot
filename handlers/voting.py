@@ -32,7 +32,7 @@ router = Router(name="voting")
 DIST_PREFIX = re.compile(r"^dist:(?P<id>.+)$")
 SCHOOL_INLINE_QUERY = re.compile(r"^d(\d+)\s*$", re.IGNORECASE)
 
-PER_PAGE = 20
+PER_PAGE = 30  # 2 ustun × 15 qator
 
 
 class SchoolShareInlineFilter(BaseFilter):

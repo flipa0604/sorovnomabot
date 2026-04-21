@@ -278,9 +278,11 @@
       .page-head h1 { font-size: 1.2rem; }
       .page-head p { font-size: 0.88rem; max-width: none; }
       .page-head .btn { width: 100%; justify-content: center; }
-      .kpi-grid { grid-template-columns: 1fr; gap: 0.65rem; }
-      .kpi { padding: 0.95rem 1rem; }
-      .kpi .label { font-size: 0.72rem; }
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+      .kpi { padding: 0.75rem 0.8rem; }
+      .kpi .label { font-size: 0.68rem; letter-spacing: 0.04em; }
+      .kpi .value { font-size: clamp(1.1rem, 5.2vw, 1.4rem); }
+      .kpi .hint { font-size: 0.7rem; }
       .chart-box { height: 220px; min-height: 180px; }
       .toolbar { flex-direction: column; align-items: stretch; gap: 0.65rem; }
       .toolbar .field,

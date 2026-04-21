@@ -102,15 +102,23 @@ def schools_page_keyboard(
     district_id: int,
     page: int,
     total_count: int,
-    per_page: int = 20,
+    per_page: int = 30,
+    columns: int = 2,
 ) -> InlineKeyboardMarkup:
-    """Maktab tugmalari + sahifa (20 tadan) + boshqa tuman."""
+    """Maktab tugmalari — 2 ustun, 15 qatordan (jami 30 tadan) + sahifa + boshqa tuman."""
     rows: list[list[InlineKeyboardButton]] = []
+    label_limit = 22 if columns > 1 else 60
+    current: list[InlineKeyboardButton] = []
     for sch in schools:
-        label = (sch.school_name or "").strip()[:60] or f"#{sch.id}"
-        rows.append(
-            [InlineKeyboardButton(text=f"🏫 {label}", callback_data=f"dt:{sch.id}:{district_id}:{page}")]
+        label = (sch.school_name or "").strip()[:label_limit] or f"#{sch.id}"
+        current.append(
+            InlineKeyboardButton(text=f"🏫 {label}", callback_data=f"dt:{sch.id}:{district_id}:{page}")
         )
+        if len(current) == columns:
+            rows.append(current)
+            current = []
+    if current:
+        rows.append(current)
 
     total_pages = max(1, (total_count + per_page - 1) // per_page)
     if total_pages > 1:
