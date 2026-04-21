@@ -34,17 +34,41 @@ def instagram_confirm_keyboard(url: str) -> InlineKeyboardMarkup:
     )
 
 
+def _normalize_tme(url: str) -> str:
+    u = (url or "").strip()
+    if not u:
+        return ""
+    if not u.startswith(("http://", "https://")):
+        u = f"https://t.me/{u.lstrip('@')}"
+    return u
+
+
 def channel_keyboard(join_url: str) -> InlineKeyboardMarkup:
     """join_url — kanal taklif havolasi yoki to'liq https (get_chat / create_chat_invite_link)."""
-    url = join_url.strip()
-    if not url.startswith(("http://", "https://")):
-        url = f"https://t.me/{url.lstrip('@')}"
+    url = _normalize_tme(join_url)
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📢 Kanalga o'tish", url=url)],
             [InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")],
         ],
     )
+
+
+def telegram_subscribe_keyboard(
+    *,
+    channel_url: str | None,
+    group_url: str | None,
+    need_channel: bool,
+    need_group: bool,
+) -> InlineKeyboardMarkup:
+    """Kanal va/yoki guruh uchun yagona obuna tugmalari + «tekshirish»."""
+    rows: list[list[InlineKeyboardButton]] = []
+    if need_channel and channel_url:
+        rows.append([InlineKeyboardButton(text="📢 Telegram kanalga o'tish", url=_normalize_tme(channel_url))])
+    if need_group and group_url:
+        rows.append([InlineKeyboardButton(text="👥 Telegram guruhga o'tish", url=_normalize_tme(group_url))])
+    rows.append([InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def vote_start_deeplink_url(bot_username: str, school_id: int) -> str:

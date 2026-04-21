@@ -94,3 +94,60 @@ async def preload_required_channel_join_url(bot: Bot) -> None:
         await get_required_channel_join_url(bot)
     except Exception as e:
         logger.warning("Kanal taklif havolasi oldindan yuklanmadi: %s", e)
+
+
+_cached_group_url: Optional[str] = None
+_cached_group_for: Optional[str] = None
+
+
+async def get_required_group_join_url(bot: Bot, *, force_refresh: bool = False) -> str | None:
+    """Guruh taklif havolasi (agar REQUIRED_GROUP_* sozlangan bo'lsa).
+
+    Avval `.env` dagi `REQUIRED_GROUP_JOIN_URL` ishlatiladi; bo'lmasa
+    `REQUIRED_GROUP_ID` uchun `get_chat().invite_link` yoki `create_chat_invite_link`
+    orqali havola olinadi. Hech biri bo'lmasa — `None`.
+    """
+    global _cached_group_url, _cached_group_for
+
+    settings = get_settings()
+    env_url = (settings.required_group_join_url or "").strip()
+    if env_url:
+        return env_url
+
+    gid = (settings.required_group_id or "").strip()
+    if not gid:
+        return None
+
+    if _cached_group_for != gid:
+        _cached_group_url = None
+        _cached_group_for = gid
+
+    if not force_refresh and _cached_group_url:
+        return _cached_group_url
+
+    try:
+        chat = await bot.get_chat(gid)
+    except TelegramBadRequest as e:
+        logger.warning("Guruh get_chat(%s) xato: %s", gid, e)
+        if gid.startswith("@"):
+            u = f"https://t.me/{gid[1:]}"
+            _cached_group_url = u
+            return u
+        return None
+
+    if getattr(chat, "invite_link", None):
+        _cached_group_url = chat.invite_link
+        return chat.invite_link
+
+    try:
+        inv = await bot.create_chat_invite_link(chat_id=gid, name="sorovnomabot-group")
+        _cached_group_url = inv.invite_link
+        return inv.invite_link
+    except TelegramBadRequest as e:
+        logger.warning("Guruh create_chat_invite_link: %s", e)
+
+    if getattr(chat, "username", None):
+        u = f"https://t.me/{chat.username}"
+        _cached_group_url = u
+        return u
+    return None

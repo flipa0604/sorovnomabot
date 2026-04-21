@@ -13,7 +13,12 @@ from config import get_settings
 from database import repositories as repo
 from handlers.voting import offer_vote_from_start_payload
 from utils.deeplink import parse_school_start_payload
-from utils.keyboards import contact_keyboard, district_filter_keyboard, instagram_confirm_keyboard
+from utils.keyboards import (
+    contact_keyboard,
+    district_filter_keyboard,
+    instagram_confirm_keyboard,
+    telegram_subscribe_keyboard,
+)
 from utils.phone import normalize_phone
 from utils.states import Registration, Voting
 
@@ -56,21 +61,34 @@ def _already_voted_html(school) -> str:
     return body
 
 
-def _channel_prompt_html() -> str:
-    return (
-        "📢 <b>Telegram kanalimiz</b>\n\n"
-        "💬 <i>Yangiliklar, e'lonlar va natijalardan</i> <b>birinchi bo'lib</b> "
-        "<i>xabardor bo'lish uchun</i>\n"
-        "👉 <b>kanalimizga obuna bo'ling.</b>\n\n"
-        "━━━━━━━━━━━━━━━━\n"
-        "✅ <i>Obuna bo'lgach, pastdagi</i> <b>«A'zolikni tekshirish»</b> "
-        "<i>tugmasini bosing.</i>"
+def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
+    lines = [
+        "📢 <b>Telegram'da bizga qo'shiling</b>",
+        "",
+        "🌟 <i>Yangiliklar, e'lonlar va natijalardan</i> <b>birinchi bo'lib</b> "
+        "<i>xabardor bo'lish va so'rovnomada qatnashish uchun</i>",
+        "👉 <b>quyidagilarga obuna bo'ling:</b>",
+        "",
+        "━━━━━━━━━━━━━━━━",
+    ]
+    if need_channel:
+        lines.append("📢 <b>Telegram kanalimizga obuna bo'ling</b>")
+    if need_group:
+        lines.append("👥 <b>Telegram guruhimizga qo'shiling</b>")
+    lines.extend(
+        [
+            "━━━━━━━━━━━━━━━━",
+            "",
+            "✅ <i>Hammasini bajargach, pastdagi</i> "
+            "<b>«A'zolikni tekshirish»</b> <i>tugmasini bosing.</i>",
+        ]
     )
+    return "\n".join(lines)
 
 
-def _channel_ok_instagram_prompt_html() -> str:
+def _telegram_ok_instagram_prompt_html() -> str:
     return (
-        "🎉 <b>Ajoyib!</b> <i>Telegram kanalimizga muvaffaqiyatli obuna bo'ldingiz.</i>\n\n"
+        "🎉 <b>Ajoyib!</b> <i>Telegram'dagi obunalaringiz tasdiqlandi.</i>\n\n"
         "━━━━━━━━━━━━━━━━\n"
         "📷 <b>Endi — Instagram sahifamiz</b>\n\n"
         "✨ <i>Bizni Instagram'da ham kuzatib boring:</i>\n"
@@ -100,19 +118,92 @@ def _phone_prompt_html() -> str:
     )
 
 
+_MEMBER_STATUSES = (
+    ChatMemberStatus.CREATOR,
+    ChatMemberStatus.ADMINISTRATOR,
+    ChatMemberStatus.MEMBER,
+    ChatMemberStatus.RESTRICTED,
+)
+
+
+async def _is_member_of(bot: Bot, chat_id: str, user_id: int) -> bool:
+    cid = (chat_id or "").strip()
+    if not cid:
+        return False
+    try:
+        m = await bot.get_chat_member(chat_id=cid, user_id=user_id)
+    except TelegramBadRequest as e:
+        logger.warning("A'zolik tekshiruvi xatolik (%s): %s", cid, e)
+        return False
+    return m.status in _MEMBER_STATUSES
+
+
 async def user_is_channel_member(bot: Bot, user_id: int) -> bool:
     settings = get_settings()
-    try:
-        m = await bot.get_chat_member(chat_id=settings.required_channel_id, user_id=user_id)
-    except TelegramBadRequest as e:
-        logger.warning("Kanal tekshiruvi xatolik: %s", e)
-        return False
-    return m.status in (
-        ChatMemberStatus.CREATOR,
-        ChatMemberStatus.ADMINISTRATOR,
-        ChatMemberStatus.MEMBER,
-        ChatMemberStatus.RESTRICTED,
+    return await _is_member_of(bot, settings.required_channel_id, user_id)
+
+
+async def user_is_group_member(bot: Bot, user_id: int) -> bool:
+    """Guruh majburiy emas bo'lsa — True (o'tkazib yuboriladi)."""
+    settings = get_settings()
+    gid = (settings.required_group_id or "").strip()
+    if not gid:
+        return True
+    return await _is_member_of(bot, gid, user_id)
+
+
+async def _telegram_prompt_context(bot: Bot, uid: int) -> tuple[bool, bool, str | None, str | None]:
+    """(channel_ok, group_ok, channel_join_url, group_join_url)."""
+    from utils.channel_invite import get_required_channel_join_url, get_required_group_join_url
+
+    settings = get_settings()
+    channel_ok = await user_is_channel_member(bot, uid)
+    group_required = bool((settings.required_group_id or "").strip())
+    group_ok = True if not group_required else await user_is_group_member(bot, uid)
+
+    channel_url: str | None = None
+    if not channel_ok:
+        try:
+            channel_url = await get_required_channel_join_url(bot)
+        except Exception as e:
+            logger.warning("Kanal taklif havolasi: %s", e)
+            ch = (settings.required_channel_id or "").strip()
+            if ch.startswith("@"):
+                channel_url = f"https://t.me/{ch.lstrip('@')}"
+
+    group_url: str | None = None
+    if group_required and not group_ok:
+        try:
+            group_url = await get_required_group_join_url(bot)
+        except Exception as e:
+            logger.warning("Guruh taklif havolasi: %s", e)
+
+    return channel_ok, group_ok, channel_url, group_url
+
+
+async def _send_telegram_subscribe_prompt(
+    message_or_query: Message | CallbackQuery,
+    *,
+    channel_ok: bool,
+    group_ok: bool,
+    channel_url: str | None,
+    group_url: str | None,
+) -> None:
+    need_channel = not channel_ok
+    need_group = not group_ok
+    if not need_channel and not need_group:
+        return
+    text = _telegram_prompt_html(need_channel=need_channel, need_group=need_group)
+    kb = telegram_subscribe_keyboard(
+        channel_url=channel_url,
+        group_url=group_url,
+        need_channel=need_channel,
+        need_group=need_group,
     )
+    target = message_or_query.message if isinstance(message_or_query, CallbackQuery) else message_or_query
+    if target is None:
+        return
+    await target.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
 async def enter_voting_stage(
@@ -185,7 +276,10 @@ async def cmd_start(
     if is_new_user:
         await message.answer(_start_welcome_html(message), parse_mode=ParseMode.HTML)
 
-    if await user_is_channel_member(bot, uid):
+    channel_ok, group_ok, channel_url, group_url = await _telegram_prompt_context(bot, uid)
+    telegram_ok = channel_ok and group_ok
+
+    if telegram_ok:
         await repo.set_user_flags(session, uid, channel_ok=True)
         u = await repo.get_user(session, uid)
         if school_id is not None and u and u.instagram_ok and u.phone_normalized:
@@ -211,21 +305,12 @@ async def cmd_start(
         return
 
     await state.set_state(Registration.wait_subscription)
-
-    from utils.channel_invite import get_required_channel_join_url
-    from utils.keyboards import channel_keyboard
-
-    ch = get_settings().required_channel_id
-    try:
-        join_url = await get_required_channel_join_url(bot)
-    except Exception as e:
-        logger.warning("Kanal taklif havolasi: %s", e)
-        join_url = f"https://t.me/{ch.lstrip('@')}" if ch.startswith("@") else "https://t.me/telegram"
-
-    await message.answer(
-        _channel_prompt_html(),
-        reply_markup=channel_keyboard(join_url),
-        parse_mode=ParseMode.HTML,
+    await _send_telegram_subscribe_prompt(
+        message,
+        channel_ok=channel_ok,
+        group_ok=group_ok,
+        channel_url=channel_url,
+        group_url=group_url,
     )
 
 @router.callback_query(F.data == "sub:check")
@@ -237,22 +322,40 @@ async def callback_check_subscription(
 ) -> None:
     await query.answer()
     uid = query.from_user.id
-    if not await user_is_channel_member(bot, uid):
-        await query.message.answer(
-            "⚠️ <b>Kanalda a'zolik aniqlanmadi.</b>\n\n"
-            "📢 <i>Iltimos, avval</i> <b>Telegram kanalimizga obuna bo'ling</b>, "
-            "<i>so'ngra qayta</i> <b>✅ A'zolikni tekshirish</b> <i>tugmasini bosing.</i>",
-            parse_mode=ParseMode.HTML,
+
+    channel_ok, group_ok, channel_url, group_url = await _telegram_prompt_context(bot, uid)
+    if not (channel_ok and group_ok):
+        missing_parts = []
+        if not channel_ok:
+            missing_parts.append("📢 <b>Telegram kanal</b>")
+        if not group_ok:
+            missing_parts.append("👥 <b>Telegram guruh</b>")
+        missing_html = " <i>va</i> ".join(missing_parts)
+        if query.message:
+            await query.message.answer(
+                f"⚠️ <b>A'zolik hali to'liq emas.</b>\n\n"
+                f"📌 <i>Iltimos, quyidagiga obuna bo'ling:</i> {missing_html}\n\n"
+                f"✅ <i>So'ngra qayta</i> <b>«A'zolikni tekshirish»</b> "
+                f"<i>tugmasini bosing.</i>",
+                parse_mode=ParseMode.HTML,
+            )
+        await _send_telegram_subscribe_prompt(
+            query,
+            channel_ok=channel_ok,
+            group_ok=group_ok,
+            channel_url=channel_url,
+            group_url=group_url,
         )
         return
 
     await repo.set_user_flags(session, uid, channel_ok=True)
     await state.set_state(Registration.wait_instagram)
-    await query.message.answer(
-        _channel_ok_instagram_prompt_html(),
-        reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
-        parse_mode=ParseMode.HTML,
-    )
+    if query.message:
+        await query.message.answer(
+            _telegram_ok_instagram_prompt_html(),
+            reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
+            parse_mode=ParseMode.HTML,
+        )
 
 
 @router.callback_query(F.data == "ig:confirm")
