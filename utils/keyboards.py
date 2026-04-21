@@ -118,7 +118,7 @@ def district_filter_keyboard(districts: list[District]) -> InlineKeyboardMarkup:
     row: list[InlineKeyboardButton] = []
     for d in districts:
         label = (d.name or "")[:38]
-        row.append(InlineKeyboardButton(text=f"📌 {label}", callback_data=f"dist:{d.id}"))
+        row.append(InlineKeyboardButton(text=f"{label}", callback_data=f"dist:{d.id}"))
         if len(row) == 2:
             rows.append(row)
             row = []

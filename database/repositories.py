@@ -155,7 +155,7 @@ async def list_schools_by_district_page(
         select(School)
         .options(selectinload(School.district))
         .where(School.district_id == district_id)
-        .order_by(School.school_name, School.id)
+        .order_by(School.sort_order, School.school_name, School.id)
         .offset(max(0, page) * per_page)
         .limit(per_page)
     )

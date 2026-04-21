@@ -418,20 +418,43 @@ async def inline_share_school(
         return
 
     dist_name = school.district.name if school.district else ""
-    title = (school.school_name or "Maktab")[:64]
-    desc = (f"{school.school_name} · {dist_name}" if dist_name else (school.school_name or ""))[:128]
+    sname = school.school_name or "Maktab"
+    title = f"🗳 {sname}"[:64]
+    desc = (
+        f"Ovoz bering: {sname} · {dist_name}"
+        if dist_name
+        else f"Ovoz bering: {sname}"
+    )[:128]
 
     body_lines = [
-        f"🏫 <b>{html.escape(school.school_name or '')}</b>",
+        "🏆 <b>«Eng yaxshi maktab» — 2026</b>",
+        "📍 <i>Buxoro viloyati maktablari o'rtasida so'rovnoma</i>",
+        "",
+        "━━━━━━━━━━━━━━━━",
+        f"🏫 <b>{html.escape(sname)}</b>",
     ]
     if dist_name:
-        body_lines.append(f"📍 {html.escape(dist_name)}")
-    body_lines.extend(["", "👇 <i>Botda ovoz berish:</i>"])
+        body_lines.append(f"📌 <i>{html.escape(dist_name)}</i>")
+    body_lines.extend(
+        [
+            "━━━━━━━━━━━━━━━━",
+            "",
+            "🗳 <b>BITU So'rovnoma botida</b> <i>ushbu maktabga</i> <b>ovoz bering!</b>",
+            "",
+            "✨ <i>Har bir ovoz — sizning maktabingiz uchun</i> <b>qo'llab-quvvatlash!</b>",
+            "🙏 <i>Do'stlaringiz bilan ulashing — ovozimizni birlashtiraylik.</i>",
+            "",
+            "👇 <b>Pastdagi tugma orqali ovoz bering</b> 👇",
+        ]
+    )
     message_text = "\n".join(body_lines)
 
     vote_url = vote_start_deeplink_url(uname, school_id)
     markup = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="🗳 Botda ovoz berish", url=vote_url)]]
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🗳 Ovoz berish", url=vote_url)],
+            [InlineKeyboardButton(text="📤 Do'stlarga ulashish", switch_inline_query=f"d{school_id}")],
+        ]
     )
 
     results = [
@@ -442,6 +465,7 @@ async def inline_share_school(
             input_message_content=InputTextMessageContent(
                 message_text=message_text,
                 parse_mode="HTML",
+                disable_web_page_preview=True,
             ),
             reply_markup=markup,
         )

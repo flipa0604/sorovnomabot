@@ -21,6 +21,85 @@ logger = logging.getLogger(__name__)
 router = Router(name="registration")
 
 
+def _start_welcome_html(message: Message) -> str:
+    """/start — yangi user uchun birinchi salom (HTML)."""
+    fu = message.from_user
+    name = (fu.first_name or fu.full_name or "Mehmon").strip()
+    safe = html.escape(name)
+    mention = f'<a href="tg://user?id={fu.id}">{safe}</a>'
+    return (
+        f"👋 <b>Assalomu alaykum</b>, {mention}!\n\n"
+        "🎓 <b>BITU So'rovnoma botiga</b> <i>xush kelibsiz!</i>\n\n"
+        "📍 <i>Hozirda biz</i> <b>Buxoro viloyati</b> <i>bo'yicha</i>\n"
+        "🏆 <b>«Eng yaxshi maktab»</b> <i>nominatsiyasini o'tkazyapmiz.</i>\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "📲 <b>Maktablarga ovoz berish</b> <i>uchun dastlab:</i>\n\n"
+        "• 📷 <b>Instagram</b> — sahifamizga <i>obuna</i> bo'ling\n"
+        "• 📢 <b>Telegram kanalimizga</b> — <i>qo'shiling</i>\n\n"
+        "✨ <i>Keyin esa ovoz berishingiz mumkin.</i>\n\n"
+        "👇 <b>Quyidagi qadamlarni</b> bajaring — <i>biz yonindamiz!</i>"
+    )
+
+
+def _already_voted_html(school) -> str:
+    """Foydalanuvchi avval ovoz bergan — qisqa sharaf xabari."""
+    dist = school.district.name if school and school.district else ""
+    sname = school.school_name if school else ""
+    body = (
+        "✅ <b>Siz allaqachon ovoz bergansiz!</b>\n\n"
+        "🗳 <i>Tanlovingiz qabul qilingan:</i>\n\n"
+        f"🏫 <b>{html.escape(sname)}</b>"
+    )
+    if dist:
+        body += f"\n📍 <i>{html.escape(dist)}</i>"
+    body += "\n\n🙏 <b>Qo'llab-quvvatlaganingiz uchun rahmat!</b>"
+    return body
+
+
+def _channel_prompt_html() -> str:
+    return (
+        "📢 <b>Telegram kanalimiz</b>\n\n"
+        "💬 <i>Yangiliklar, e'lonlar va natijalardan</i> <b>birinchi bo'lib</b> "
+        "<i>xabardor bo'lish uchun</i>\n"
+        "👉 <b>kanalimizga obuna bo'ling.</b>\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "✅ <i>Obuna bo'lgach, pastdagi</i> <b>«A'zolikni tekshirish»</b> "
+        "<i>tugmasini bosing.</i>"
+    )
+
+
+def _channel_ok_instagram_prompt_html() -> str:
+    return (
+        "🎉 <b>Ajoyib!</b> <i>Telegram kanalimizga muvaffaqiyatli obuna bo'ldingiz.</i>\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "📷 <b>Endi — Instagram sahifamiz</b>\n\n"
+        "✨ <i>Bizni Instagram'da ham kuzatib boring:</i>\n"
+        "🌟 <i>yangi fotolar, reellar va so'rovnomalar sizni kutmoqda.</i>\n\n"
+        "👇 <b>Havolaga o'ting</b>, <i>sahifamizga</i> <b>obuna bo'ling</b>, "
+        "<i>keyin</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
+    )
+
+
+def _instagram_prompt_html() -> str:
+    return (
+        "📷 <b>Instagram sahifamizga obuna bo'ling</b>\n\n"
+        "✨ <i>Bizni Instagram'da ham kuzatib boring —</i>\n"
+        "🌟 <i>yangi fotolar, reellar va qiziqarli kontent sizni kutmoqda.</i>\n\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "👇 <b>Havolaga o'ting</b>, <i>sahifamizga</i> <b>obuna bo'ling</b>, "
+        "<i>keyin</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
+    )
+
+
+def _phone_prompt_html() -> str:
+    return (
+        "📱 <b>Telefon raqamingiz</b>\n\n"
+        "🔐 <i>Har bir foydalanuvchi bitta marta ovoz bera olishi uchun "
+        "telefon raqamingizni ulashing.</i>\n\n"
+        "👇 <b>Pastdagi</b> <i>«📱 Telefonni ulashish»</i> <b>tugmasini bosing.</b>"
+    )
+
+
 async def user_is_channel_member(bot: Bot, user_id: int) -> bool:
     settings = get_settings()
     try:
@@ -82,6 +161,10 @@ async def cmd_start(
     bot: Bot,
 ) -> None:
     uid = message.from_user.id
+
+    existing_before = await repo.get_user(session, uid)
+    is_new_user = existing_before is None
+
     await repo.get_or_create_user(
         session,
         uid,
@@ -90,6 +173,17 @@ async def cmd_start(
     )
 
     school_id = parse_school_start_payload(command.args)
+
+    prior_vote = await repo.get_user_vote(session, uid)
+    if prior_vote and prior_vote.school and school_id is None:
+        await message.answer(
+            _already_voted_html(prior_vote.school),
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    if is_new_user:
+        await message.answer(_start_welcome_html(message), parse_mode=ParseMode.HTML)
 
     if await user_is_channel_member(bot, uid):
         await repo.set_user_flags(session, uid, channel_ok=True)
@@ -103,24 +197,25 @@ async def cmd_start(
         if not u or not u.instagram_ok:
             await state.set_state(Registration.wait_instagram)
             await message.answer(
-                "📷 <b>Instagram</b>\nHavolani oching va instagram profilimizga obuna bo'ling, keyin <b>✅ Tasdiqlash</b> tugmasini bosing.",
+                _instagram_prompt_html(),
                 reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
+                parse_mode=ParseMode.HTML,
             )
             return
         await state.set_state(Registration.wait_phone)
         await message.answer(
-            "📱 <b>Telefon</b>\nPastdagi tugma orqali ulashing.",
+            _phone_prompt_html(),
             reply_markup=contact_keyboard(),
+            parse_mode=ParseMode.HTML,
         )
         return
 
     await state.set_state(Registration.wait_subscription)
-    ch = get_settings().required_channel_id
-    pretty = ch if ch.startswith("@") else f"kanal ({ch})"
 
     from utils.channel_invite import get_required_channel_join_url
     from utils.keyboards import channel_keyboard
 
+    ch = get_settings().required_channel_id
     try:
         join_url = await get_required_channel_join_url(bot)
     except Exception as e:
@@ -128,7 +223,7 @@ async def cmd_start(
         join_url = f"https://t.me/{ch.lstrip('@')}" if ch.startswith("@") else "https://t.me/telegram"
 
     await message.answer(
-        f"📢 <b>Kanal</b>\n{html.escape(pretty)} ga qo'shiling, keyin <b>✅ A'zolikni tekshirish</b>.",
+        _channel_prompt_html(),
         reply_markup=channel_keyboard(join_url),
         parse_mode=ParseMode.HTML,
     )
@@ -144,15 +239,19 @@ async def callback_check_subscription(
     uid = query.from_user.id
     if not await user_is_channel_member(bot, uid):
         await query.message.answer(
-            "⚠️ Kanalda a'zo emassiz.\nAvval qo'shiling, keyin qayta tekshiring.",
+            "⚠️ <b>Kanalda a'zolik aniqlanmadi.</b>\n\n"
+            "📢 <i>Iltimos, avval</i> <b>Telegram kanalimizga obuna bo'ling</b>, "
+            "<i>so'ngra qayta</i> <b>✅ A'zolikni tekshirish</b> <i>tugmasini bosing.</i>",
+            parse_mode=ParseMode.HTML,
         )
         return
 
     await repo.set_user_flags(session, uid, channel_ok=True)
     await state.set_state(Registration.wait_instagram)
     await query.message.answer(
-        "✅ <b>Kanal OK</b>\n\n📷 Instagram — havola, keyin <b>✅ Ko'rdim</b>.",
+        _channel_ok_instagram_prompt_html(),
         reply_markup=instagram_confirm_keyboard(get_settings().instagram_profile_url),
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -167,8 +266,10 @@ async def callback_instagram(
     await repo.set_user_flags(session, uid, instagram_ok=True)
     await state.set_state(Registration.wait_phone)
     await query.message.answer(
-        "📱 <b>Telefon</b>\nTugma orqali ulashing.",
+        "🎉 <b>Zo'r!</b> <i>Instagram sahifamizga ham obuna bo'ldingiz.</i>\n\n"
+        + _phone_prompt_html(),
         reply_markup=contact_keyboard(),
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -204,5 +305,9 @@ async def on_contact(
 
     await repo.set_user_flags(session, uid, phone_normalized=phone)
 
-    await message.answer("✅ Raqam qabul qilindi.", reply_markup=ReplyKeyboardRemove())
+    await message.answer(
+        "✅ <b>Raqamingiz qabul qilindi.</b>\n🙏 <i>Rahmat!</i>",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode=ParseMode.HTML,
+    )
     await enter_voting_stage(message, session, state, uid, message.bot)
