@@ -39,10 +39,10 @@ def _start_welcome_html(message: Message) -> str:
         "🏆 <b>«Eng yaxshi maktab»</b> <i>nominatsiyasini o'tkazyapmiz.</i>\n\n"
         "━━━━━━━━━━━━━━━━\n"
         "📲 <b>Maktablarga ovoz berish</b> <i>uchun dastlab:</i>\n\n"
-        "• 📷 <b>Instagram</b> — sahifamizga <i>obuna</i> bo'ling\n"
-        "• 📢 <b>Telegram kanalimizga</b> — <i>qo'shiling</i>\n\n"
-        "✨ <i>Keyin esa ovoz berishingiz mumkin.</i>\n\n"
-        "👇 <b>Quyidagi qadamlarni</b> bajaring — <i>biz yonindamiz!</i>"
+        "• 📢 <b>Telegram kanalimizga</b> <i>obuna bo'ling</i>\n"
+        "• 📷 <b>Instagram sahifamizga</b> <i>obuna bo'ling</i>\n\n"
+        "✨ <i>Shundan so'ng ovoz berishingiz mumkin.</i>\n\n"
+        "👇 <b>Quyidagi qadamlarni</b> bajaring — <i>biz yoningizdamiz!</i>"
     )
 
 
@@ -63,10 +63,10 @@ def _already_voted_html(school) -> str:
 
 def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
     lines = [
-        "📢 <b>Telegram'da bizga qo'shiling</b>",
+        "📢 <b>Telegramda bizga qo'shiling</b>",
         "",
         "🌟 <i>Yangiliklar, e'lonlar va natijalardan</i> <b>birinchi bo'lib</b> "
-        "<i>xabardor bo'lish va so'rovnomada qatnashish uchun</i>",
+        "<i>xabardor bo'lish va so'rovnomada qatnashish uchun</i> "
         "👉 <b>quyidagilarga obuna bo'ling:</b>",
         "",
         "━━━━━━━━━━━━━━━━",
@@ -79,7 +79,7 @@ def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
         [
             "━━━━━━━━━━━━━━━━",
             "",
-            "✅ <i>Hammasini bajargach, pastdagi</i> "
+            "✅ <i>Hammasini bajarganingizdan so'ng, pastdagi</i> "
             "<b>«A'zolikni tekshirish»</b> <i>tugmasini bosing.</i>",
         ]
     )
@@ -88,31 +88,31 @@ def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
 
 def _telegram_ok_instagram_prompt_html() -> str:
     return (
-        "🎉 <b>Ajoyib!</b> <i>Telegram'dagi obunalaringiz tasdiqlandi.</i>\n\n"
+        "🎉 <b>Ajoyib!</b> <i>Telegramdagi obunalaringiz tasdiqlandi.</i>\n\n"
         "━━━━━━━━━━━━━━━━\n"
-        "📷 <b>Endi — Instagram sahifamiz</b>\n\n"
-        "✨ <i>Bizni Instagram'da ham kuzatib boring:</i>\n"
-        "🌟 <i>yangi fotolar, reellar va so'rovnomalar sizni kutmoqda.</i>\n\n"
+        "📷 <b>Endi — Instagram sahifamizga obuna bo'ling</b>\n\n"
+        "✨ <i>Bizni Instagramda ham kuzatib boring:</i>\n"
+        "🌟 <i>yangi suratlar, reellar va so'rovnomalar sizni kutmoqda.</i>\n\n"
         "👇 <b>Havolaga o'ting</b>, <i>sahifamizga</i> <b>obuna bo'ling</b>, "
-        "<i>keyin</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
+        "<i>so'ngra</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
     )
 
 
 def _instagram_prompt_html() -> str:
     return (
         "📷 <b>Instagram sahifamizga obuna bo'ling</b>\n\n"
-        "✨ <i>Bizni Instagram'da ham kuzatib boring —</i>\n"
-        "🌟 <i>yangi fotolar, reellar va qiziqarli kontent sizni kutmoqda.</i>\n\n"
+        "✨ <i>Bizni Instagramda ham kuzatib boring —</i>\n"
+        "🌟 <i>yangi suratlar, reellar va qiziqarli kontent sizni kutmoqda.</i>\n\n"
         "━━━━━━━━━━━━━━━━\n"
         "👇 <b>Havolaga o'ting</b>, <i>sahifamizga</i> <b>obuna bo'ling</b>, "
-        "<i>keyin</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
+        "<i>so'ngra</i> <b>✅ Tasdiqlash</b> <i>tugmasini bosing.</i>"
     )
 
 
 def _phone_prompt_html() -> str:
     return (
         "📱 <b>Telefon raqamingiz</b>\n\n"
-        "🔐 <i>Har bir foydalanuvchi bitta marta ovoz bera olishi uchun "
+        "🔐 <i>Har bir foydalanuvchi faqat bir marta ovoz bera olishi uchun "
         "telefon raqamingizni ulashing.</i>\n\n"
         "👇 <b>Pastdagi</b> <i>«📱 Telefonni ulashish»</i> <b>tugmasini bosing.</b>"
     )
@@ -221,14 +221,15 @@ async def enter_voting_stage(
     uname = me.username or "bot"
     if not districts:
         await message.answer(
-            "⚠️ <b>Tumanlar yo'q.</b>\nAdmin web-panel orqali qo'shing.",
+            "⚠️ <b>Hozircha tumanlar mavjud emas.</b>\n"
+            "<i>Iltimos, admin web-panel orqali tumanlarni qo'shing.</i>",
         )
         return
     await message.answer(
         "🗳 <b>Ovoz berish</b>\n\n"
-        "1) Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n\n"
-        "2) Ro'yxatdan maktabni tanlang va shu maktabga ovoz bering.\n\n"
-        "ℹ️ Faqat bitta ovoz bera olasiz!",
+        "1️⃣ Pastdagi tugmalar orqali <b>tumanni</b> tanlang.\n\n"
+        "2️⃣ Ro'yxatdan maktabni tanlang va shu maktab uchun ovoz bering.\n\n"
+        "ℹ️ <i>Diqqat! Siz faqat bir marta ovoz bera olasiz.</i>",
         reply_markup=district_filter_keyboard(districts),
     )
 
@@ -236,9 +237,12 @@ async def enter_voting_stage(
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     await message.answer(
-        "📋 <b>So'rovnoma boti</b>\n\n"
+        "📋 <b>So'rovnoma boti — yordam</b>\n\n"
+        "<b>Ovoz berish bosqichlari:</b>\n"
         "📢 Kanal → 📷 Instagram → 📱 Telefon → 🗳 Ovoz\n\n"
-        "/start — boshlash",
+        "<b>Buyruqlar:</b>\n"
+        "/start — botni boshlash\n"
+        "/help — yordam",
         parse_mode=ParseMode.HTML,
     )
 
@@ -334,8 +338,8 @@ async def callback_check_subscription(
         if query.message:
             await query.message.answer(
                 f"⚠️ <b>A'zolik hali to'liq emas.</b>\n\n"
-                f"📌 <i>Iltimos, quyidagiga obuna bo'ling:</i> {missing_html}\n\n"
-                f"✅ <i>So'ngra qayta</i> <b>«A'zolikni tekshirish»</b> "
+                f"📌 <i>Iltimos, quyidagilarga obuna bo'ling:</i> {missing_html}\n\n"
+                f"✅ <i>So'ngra qaytadan</i> <b>«A'zolikni tekshirish»</b> "
                 f"<i>tugmasini bosing.</i>",
                 parse_mode=ParseMode.HTML,
             )
@@ -369,7 +373,7 @@ async def callback_instagram(
     await repo.set_user_flags(session, uid, instagram_ok=True)
     await state.set_state(Registration.wait_phone)
     await query.message.answer(
-        "🎉 <b>Zo'r!</b> <i>Instagram sahifamizga ham obuna bo'ldingiz.</i>\n\n"
+        "🎉 <b>Zo'r!</b> <i>Instagram sahifamizga obuna bo'lganingiz tasdiqlandi.</i>\n\n"
         + _phone_prompt_html(),
         reply_markup=contact_keyboard(),
         parse_mode=ParseMode.HTML,
@@ -384,18 +388,21 @@ async def on_contact(
 ) -> None:
     contact: Contact = message.contact
     if contact.user_id is not None and contact.user_id != message.from_user.id:
-        await message.answer("⚠️ Faqat <b>o'z</b> kontaktingiz.", parse_mode=ParseMode.HTML)
+        await message.answer(
+            "⚠️ Iltimos, faqat <b>o'zingizning</b> kontaktingizni yuboring.",
+            parse_mode=ParseMode.HTML,
+        )
         return
 
     phone = normalize_phone(contact.phone_number or "")
     if len(phone) < 12:
-        await message.answer("❌ Raqam noto'g'ri. Qayta yuboring.")
+        await message.answer("❌ Raqam noto'g'ri. Iltimos, qayta yuboring.")
         return
 
     uid = message.from_user.id
     if await repo.phone_taken_by_other(session, phone, uid):
         await message.answer(
-            "❌ Bu raqam boshqa akkauntga bog'langan.",
+            "❌ Ushbu raqam boshqa akkauntga bog'langan.",
             reply_markup=ReplyKeyboardRemove(),
         )
         await state.clear()
@@ -403,7 +410,7 @@ async def on_contact(
 
     existing = await repo.get_user(session, uid)
     if existing and existing.phone_normalized and existing.phone_normalized != phone:
-        await message.answer("❌ Raqamni o'zgartirib bo'lmaydi.")
+        await message.answer("❌ Telefon raqamingizni o'zgartirib bo'lmaydi.")
         return
 
     await repo.set_user_flags(session, uid, phone_normalized=phone)

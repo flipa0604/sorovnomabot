@@ -61,7 +61,7 @@ def _school_list_caption(district_name: str, page: int, total_pages: int) -> str
 async def _validate_voter(session, uid: int) -> tuple[bool, str | None]:
     user = await repo.get_user(session, uid)
     if not user or not user.phone_normalized:
-        return False, "⚠️ Avval /start bilan ro'yxatdan o'ting."
+        return False, "⚠️ Avval /start buyrug'i orqali ro'yxatdan o'ting."
     return True, None
 
 
@@ -73,20 +73,20 @@ async def _apply_vote_after_confirmed(session, uid: int, school_id: int) -> tupl
         await repo.upsert_user_vote(session, uid, school.id)
     except IntegrityError as e:
         logger.warning("Ovoz saqlash xatosi: %s", e)
-        return False, "❌ Saqlab bo'lmadi."
+        return False, "❌ Ovozingizni saqlab bo'lmadi."
     return True, None
 
 
 async def _send_vote_success(bot: Bot, uid: int, school, *, changed: bool) -> None:
     dist_name = school.district.name if school.district else ""
-    head = "🔄 Ovoz yangilandi!" if changed else "✅ Ovoz qabul qilindi!"
+    head = "🔄 <b>Ovozingiz yangilandi!</b>" if changed else "✅ <b>Ovozingiz qabul qilindi!</b>"
     try:
         await bot.send_message(
             uid,
             f"{head}\n\n"
             f"🏫 <b>{html.escape(school.school_name or '')}</b>\n"
             f"📍 {html.escape(dist_name)}\n\n"
-            "🙏 Rahmat!",
+            "🙏 <i>Qo'llab-quvvatlaganingiz uchun rahmat!</i>",
         )
     except Exception as e:
         logger.warning("Foydalanuvchiga xabar yuborib bo'lmadi: %s", e)
@@ -127,12 +127,12 @@ async def callback_vote_change_confirmed(
     await state.clear()
     try:
         await query.message.edit_text(
-            "✅ <b>Ovoz yangilandi.</b>\n🙏 Rahmat!",
+            "✅ <b>Ovozingiz yangilandi.</b>\n🙏 <i>Rahmat!</i>",
             reply_markup=None,
         )
     except TelegramBadRequest:
         if query.message:
-            await query.message.answer("✅ Ovoz yangilandi. Rahmat!", )
+            await query.message.answer("✅ Ovozingiz yangilandi. Rahmat!")
 
 
 @router.callback_query(F.data == "vca")
@@ -177,7 +177,7 @@ async def callback_confirm_vote(
 
     current = await repo.get_user_vote(session, uid)
     if current and current.school_id == school_id:
-        await query.answer("ℹ️ Shu maktabga allaqachon ovoz bergansiz.", show_alert=True)
+        await query.answer("ℹ️ Siz bu maktabga allaqachon ovoz bergansiz.", show_alert=True)
         return
 
     if current and current.school_id != school_id:
@@ -187,7 +187,8 @@ async def callback_confirm_vote(
         old_dist = (old_s.district.name if old_s and old_s.district else "") or "—"
         old_school = (old_s.school_name if old_s else "") or "—"
         text = (
-            "⚠️ <b>Ovozni o'zgartirish</b>\n\n"
+            "⚠️ <b>Ovozingizni o'zgartirmoqchimisiz?</b>\n\n"
+            "<i>Avvalgi tanlovingiz:</i>\n"
             f"📍 {html.escape(old_dist)}\n"
             f"🏫 <i>{html.escape(old_school)}</i>\n\n"
             "Yangi tanlovga o'tasizmi?"
@@ -218,12 +219,12 @@ async def callback_confirm_vote(
     await state.clear()
     try:
         await query.message.edit_text(
-            "✅ <b>Ovoz qabul qilindi.</b>\n🙏 Rahmat!",
+            "✅ <b>Ovozingiz qabul qilindi.</b>\n🙏 <i>Rahmat!</i>",
             reply_markup=None,
         )
     except TelegramBadRequest:
         if query.message:
-            await query.message.answer("✅ Ovoz qabul qilindi. Rahmat!",)
+            await query.message.answer("✅ Ovozingiz qabul qilindi. Rahmat!")
 
 
 @router.callback_query(Voting.active, F.data.startswith("pg:"))
@@ -320,7 +321,7 @@ async def callback_back_to_districts(
         await query.message.answer("⚠️ Tumanlar ro'yxati bo'sh.")
         return
     await state.update_data(district_id=None)
-    text = "🗺 <b>Tuman tanlang</b>\n<i>Keyin maktab ro'yxati ochiladi.</i>"
+    text = "🗺 <b>Tumanni tanlang</b>\n<i>So'ngra maktablar ro'yxati ochiladi.</i>"
     try:
         await query.message.edit_text(
             text,
@@ -496,8 +497,8 @@ async def offer_vote_from_start_payload(
         await message.answer("❌ Maktab topilmadi.")
         return
     await state.set_state(Voting.active)
-    text = _detail_html(school) + "\n\n👇 <b>Ovoz berish</b> tugmasini bosing."
+    text = _detail_html(school) + "\n\n👇 <b>«Ovoz berish»</b> tugmasini bosing."
     kb = InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="✅ Ovoz berish", callback_data=f"vok:{school_id}")]]
     )
-    await message.answer(text, reply_markup=kb, )
+    await message.answer(text, reply_markup=kb)
