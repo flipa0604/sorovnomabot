@@ -89,65 +89,70 @@ async def get_required_channel_join_url(bot: Bot, *, force_refresh: bool = False
 
 
 async def preload_required_channel_join_url(bot: Bot) -> None:
-    """Ishga tushganda bir marta — birinchi /start tezroq bo'ladi."""
+    """Ishga tushganda bir marta — birinchi /start tezroq bo'ladi (ikkala kanal ham)."""
     try:
         await get_required_channel_join_url(bot)
     except Exception as e:
-        logger.warning("Kanal taklif havolasi oldindan yuklanmadi: %s", e)
+        logger.warning("1-kanal taklif havolasi oldindan yuklanmadi: %s", e)
+    try:
+        await get_required_channel_2_join_url(bot)
+    except Exception as e:
+        logger.warning("2-kanal taklif havolasi oldindan yuklanmadi: %s", e)
 
 
-_cached_group_url: Optional[str] = None
-_cached_group_for: Optional[str] = None
+_cached_channel2_url: Optional[str] = None
+_cached_channel2_for: Optional[str] = None
 
 
-async def get_required_group_join_url(bot: Bot, *, force_refresh: bool = False) -> str | None:
-    """Guruh taklif havolasi (agar REQUIRED_GROUP_* sozlangan bo'lsa).
+async def get_required_channel_2_join_url(bot: Bot, *, force_refresh: bool = False) -> str | None:
+    """2-majburiy kanal taklif havolasi (agar sozlangan bo'lsa).
 
-    Avval `.env` dagi `REQUIRED_GROUP_JOIN_URL` ishlatiladi; bo'lmasa
-    `REQUIRED_GROUP_ID` uchun `get_chat().invite_link` yoki `create_chat_invite_link`
-    orqali havola olinadi. Hech biri bo'lmasa — `None`.
+    Avval `.env` dagi tayyor havola (`REQUIRED_CHANNEL_2_JOIN_URL` yoki eski
+    `REQUIRED_GROUP_JOIN_URL`) ishlatiladi; bo'lmasa `channel_2_id` uchun
+    `get_chat().invite_link` yoki `create_chat_invite_link` orqali havola olinadi.
+    2-kanal sozlanmagan bo'lsa — `None`.
     """
-    global _cached_group_url, _cached_group_for
+    global _cached_channel2_url, _cached_channel2_for
 
     settings = get_settings()
-    env_url = (settings.required_group_join_url or "").strip()
+    env_url = settings.channel_2_join_url
     if env_url:
         return env_url
 
-    gid = (settings.required_group_id or "").strip()
-    if not gid:
+    cid = settings.channel_2_id
+    if not cid:
         return None
 
-    if _cached_group_for != gid:
-        _cached_group_url = None
-        _cached_group_for = gid
+    if _cached_channel2_for != cid:
+        _cached_channel2_url = None
+        _cached_channel2_for = cid
 
-    if not force_refresh and _cached_group_url:
-        return _cached_group_url
+    if not force_refresh and _cached_channel2_url:
+        return _cached_channel2_url
 
     try:
-        chat = await bot.get_chat(gid)
+        chat = await bot.get_chat(cid)
     except TelegramBadRequest as e:
-        logger.warning("Guruh get_chat(%s) xato: %s", gid, e)
-        if gid.startswith("@"):
-            u = f"https://t.me/{gid[1:]}"
-            _cached_group_url = u
+        logger.warning("2-kanal get_chat(%s) xato: %s", cid, e)
+        if cid.startswith("@"):
+            u = f"https://t.me/{cid[1:]}"
+            _cached_channel2_url = u
             return u
         return None
 
     if getattr(chat, "invite_link", None):
-        _cached_group_url = chat.invite_link
+        _cached_channel2_url = chat.invite_link
         return chat.invite_link
 
     try:
-        inv = await bot.create_chat_invite_link(chat_id=gid, name="sorovnomabot-group")
-        _cached_group_url = inv.invite_link
+        inv = await bot.create_chat_invite_link(chat_id=cid, name="sorovnomabot-channel2")
+        _cached_channel2_url = inv.invite_link
         return inv.invite_link
     except TelegramBadRequest as e:
-        logger.warning("Guruh create_chat_invite_link: %s", e)
+        logger.warning("2-kanal create_chat_invite_link: %s", e)
 
     if getattr(chat, "username", None):
         u = f"https://t.me/{chat.username}"
-        _cached_group_url = u
+        _cached_channel2_url = u
         return u
     return None

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Natijalar — Eng yaxshi maktab</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --bg-elevated: #121820;
+      --surface: #161d27;
+      --surface-hover: #1c2532;
+      --border: rgba(255,255,255,0.08);
+      --text: #f0f3f8;
+      --muted: #8b98a8;
+      --accent: #4d9fff;
+      --accent-dim: rgba(77,159,255,0.15);
+      --gold: #fbbf24;
+      --silver: #cbd5e1;
+      --bronze: #d8975a;
+      --radius: 14px;
+      --radius-sm: 9px;
+      --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { font-size: 15px; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 0.9rem 0.85rem 2.5rem;
+      -webkit-font-smoothing: antialiased;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .head { text-align: center; padding: 0.5rem 0 1rem; }
+    .head h1 { margin: 0; font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; }
+    .head p { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.85rem; }
+    .head .note { margin-top: 0.5rem; display: inline-block; font-size: 0.72rem; color: var(--muted);
+      background: var(--bg-elevated); border: 1px solid var(--border); padding: 0.22rem 0.6rem; border-radius: 999px; }
+
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.9rem; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 0.85rem 0.95rem; position: relative; overflow: hidden;
+    }
+    .kpi .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi .value { font-size: 1.6rem; font-weight: 800; margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+
+    .controls { display: flex; gap: 0.55rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .controls input, .controls select {
+      flex: 1 1 140px; min-width: 0; padding: 0.65rem 0.8rem; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text);
+      font-family: inherit; font-size: 16px;
+    }
+    .controls input::placeholder { color: var(--muted); }
+
+    .list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .row {
+      display: grid; grid-template-columns: 2.5rem 1fr auto; gap: 0.7rem; align-items: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 0.7rem 0.85rem;
+    }
+    .rank { font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; font-size: 0.95rem; }
+    .rank.medal { font-size: 1.25rem; }
+    .info { min-width: 0; }
+    .name { font-weight: 600; font-size: 0.95rem; word-break: break-word; }
+    .dist { font-size: 0.76rem; color: var(--muted); margin-top: 0.1rem; }
+    .votes { text-align: right; white-space: nowrap; }
+    .votes b { font-size: 1.05rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .votes span { display: block; font-size: 0.66rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .row.top1 { border-color: rgba(251,191,36,0.4); background: linear-gradient(105deg, var(--surface), rgba(251,191,36,0.06)); }
+    .row.top2 { border-color: rgba(203,213,225,0.3); }
+    .row.top3 { border-color: rgba(216,151,90,0.3); }
+
+    .state { text-align: center; color: var(--muted); padding: 2.5rem 1rem; font-size: 0.92rem; }
+    .footer { text-align: center; margin-top: 1.1rem; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      padding: 0.6rem 1.2rem; border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--bg-elevated); color: var(--text); font-size: 0.9rem; font-weight: 600;
+      font-family: inherit; cursor: pointer; min-height: 44px;
+    }
+    .btn:active { background: var(--surface-hover); }
+    .updated { font-size: 0.72rem; color: var(--muted); margin-top: 0.6rem; }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <h1>🏆 Eng yaxshi maktab</h1>
+    <p>Buxoro viloyati maktablari reytingi</p>
+    <span class="note">👁 Faqat ko'rish uchun</span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">🗳 Jami ovozlar</div><div class="value" id="kpiVotes">—</div></div>
+    <div class="kpi"><div class="label">🏫 Ovoz olgan maktablar</div><div class="value" id="kpiSchools">—</div></div>
+  </div>
+
+  <div class="controls">
+    <input id="search" type="text" inputmode="search" placeholder="🔎 Maktab nomi bo'yicha qidirish…" autocomplete="off">
+    <select id="district"><option value="">📍 Barcha tumanlar</option></select>
+  </div>
+
+  <div id="list" class="list"></div>
+  <div id="state" class="state">Yuklanmoqda…</div>
+
+  <div class="footer">
+    <button class="btn" id="refresh">🔄 Yangilash</button>
+    <div class="updated" id="updated"></div>
+  </div>
+
+  <script>
+    (function () {
+      var tg = window.Telegram && window.Telegram.WebApp;
+      if (tg) {
+        try {
+          tg.ready();
+          tg.expand();
+          if (tg.setHeaderColor) tg.setHeaderColor("#0a0e14");
+          if (tg.setBackgroundColor) tg.setBackgroundColor("#0a0e14");
+        } catch (e) {}
+      }
+
+      var DATA = { schools: [], districts: [], total_votes: 0, schools_with_votes: 0 };
+      var listEl = document.getElementById("list");
+      var stateEl = document.getElementById("state");
+      var searchEl = document.getElementById("search");
+      var districtEl = document.getElementById("district");
+      var refreshEl = document.getElementById("refresh");
+
+      function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+
+      function medal(rank) {
+        if (rank === 1) return "🥇";
+        if (rank === 2) return "🥈";
+        if (rank === 3) return "🥉";
+        return null;
+      }
+
+      function escapeHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+
+      function render() {
+        var q = (searchEl.value || "").trim().toLowerCase();
+        var distId = districtEl.value;
+        // Global reyting o'rni butun ro'yxat bo'yicha (filtr o'rinni o'zgartirmaydi).
+        var rows = [];
+        for (var i = 0; i < DATA.schools.length; i++) {
+          var s = DATA.schools[i];
+          var globalRank = i + 1;
+          if (distId && String(s.district_id) !== String(distId)) continue;
+          if (q && s.name.toLowerCase().indexOf(q) === -1) continue;
+          rows.push({ s: s, rank: globalRank });
+        }
+
+        if (!rows.length) {
+          listEl.innerHTML = "";
+          stateEl.style.display = "block";
+          stateEl.textContent = DATA.schools.length ? "Mos maktab topilmadi." : "Hozircha ma'lumot yo'q.";
+          return;
+        }
+        stateEl.style.display = "none";
+
+        var html = "";
+        for (var j = 0; j < rows.length; j++) {
+          var r = rows[j];
+          var hasVotes = r.s.votes > 0;
+          var m = hasVotes ? medal(r.rank) : null;
+          var topCls = (hasVotes && r.rank <= 3) ? (" top" + r.rank) : "";
+          var rankCell = m
+            ? '<div class="rank medal">' + m + "</div>"
+            : '<div class="rank">' + r.rank + "</div>";
+          html +=
+            '<div class="row' + topCls + '">' +
+              rankCell +
+              '<div class="info">' +
+                '<div class="name">' + escapeHtml(r.s.name) + "</div>" +
+                (r.s.district ? '<div class="dist">📍 ' + escapeHtml(r.s.district) + "</div>" : "") +
+              "</div>" +
+              '<div class="votes"><b>' + fmt(r.s.votes) + "</b><span>ovoz</span></div>" +
+            "</div>";
+        }
+        listEl.innerHTML = html;
+      }
+
+      function fillDistricts() {
+        var html = '<option value="">📍 Barcha tumanlar</option>';
+        for (var i = 0; i < DATA.districts.length; i++) {
+          var d = DATA.districts[i];
+          html += '<option value="' + d.id + '">' + escapeHtml(d.name) + "</option>";
+        }
+        var cur = districtEl.value;
+        districtEl.innerHTML = html;
+        districtEl.value = cur;
+      }
+
+      function applyData(data) {
+        DATA = data;
+        document.getElementById("kpiVotes").textContent = fmt(data.total_votes || 0);
+        document.getElementById("kpiSchools").textContent = fmt(data.schools_with_votes || 0);
+        fillDistricts();
+        render();
+        var now = new Date();
+        var hh = ("0" + now.getHours()).slice(-2);
+        var mm = ("0" + now.getMinutes()).slice(-2);
+        document.getElementById("updated").textContent = "Yangilandi: " + hh + ":" + mm;
+      }
+
+      function load() {
+        refreshEl.disabled = true;
+        if (!DATA.schools.length) { stateEl.style.display = "block"; stateEl.textContent = "Yuklanmoqda…"; }
+        fetch("/api/results", { headers: { "Accept": "application/json" }, credentials: "same-origin" })
+          .then(function (r) { if (!r.ok) throw new Error("http " + r.status); return r.json(); })
+          .then(function (data) { applyData(data); })
+          .catch(function () {
+            listEl.innerHTML = "";
+            stateEl.style.display = "block";
+            stateEl.textContent = "Ma'lumotni yuklab bo'lmadi. Qaytadan urinib ko'ring.";
+          })
+          .finally(function () { refreshEl.disabled = false; });
+      }
+
+      searchEl.addEventListener("input", render);
+      districtEl.addEventListener("change", render);
+      refreshEl.addEventListener("click", load);
+      load();
+    })();
+  </script>
+</body>
+</html>

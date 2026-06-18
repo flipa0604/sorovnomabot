@@ -662,6 +662,32 @@ async def school_delete(request: Request, session: SessionDep, school_id: int) -
     return RedirectResponse("/schools?err=school_has_votes", status_code=302)
 
 
+# ——— Ommaviy natijalar mini-app (hamma uchun, faqat ko'rish) ———
+
+
+@app.get("/results", response_class=HTMLResponse, response_model=None)
+async def public_results_page(request: Request) -> HTMLResponse:
+    """Telegram menyu tugmasi (chap taraf) ochadigan ommaviy reyting sahifasi.
+
+    Login talab qilinmaydi — har kim maktablar ovozlarini ko'ra oladi.
+    Ma'lumot /api/results dan olinadi.
+    """
+    return templates.TemplateResponse(
+        "results.html",
+        {"request": request},
+    )
+
+
+@app.get("/api/results", response_model=None)
+async def public_results_api(session: SessionDep) -> JSONResponse:
+    """Ommaviy natijalar (faqat yig'ma sonlar; shaxsiy ma'lumotlarsiz)."""
+    bundle = await repo.public_results_bundle(session)
+    return JSONResponse(
+        bundle,
+        headers={"Cache-Control": "public, max-age=15"},
+    )
+
+
 class TgWebAppAuthBody(BaseModel):
     init_data: str = ""
 

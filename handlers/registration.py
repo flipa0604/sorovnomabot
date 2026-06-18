@@ -3,7 +3,7 @@ import logging
 
 from aiogram import Bot, F, Router
 from aiogram.enums import ChatMemberStatus, ParseMode
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
@@ -39,7 +39,7 @@ def _start_welcome_html(message: Message) -> str:
         "🏆 <b>«Eng yaxshi maktab»</b> <i>nominatsiyasini o'tkazyapmiz.</i>\n\n"
         "━━━━━━━━━━━━━━━━\n"
         "📲 <b>Maktablarga ovoz berish</b> <i>uchun dastlab:</i>\n\n"
-        "• 📢 <b>Telegram kanalimizga</b> <i>obuna bo'ling</i>\n"
+        "• 📢 <b>Telegram kanallarimizga</b> <i>obuna bo'ling</i>\n"
         "• 📷 <b>Instagram sahifamizga</b> <i>obuna bo'ling</i>\n\n"
         "✨ <i>Shundan so'ng ovoz berishingiz mumkin.</i>\n\n"
         "👇 <b>Quyidagi qadamlarni</b> bajaring — <i>biz yoningizdamiz!</i>"
@@ -61,7 +61,7 @@ def _already_voted_html(school) -> str:
     return body
 
 
-def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
+def _telegram_prompt_html(*, need_channel: bool, need_channel_2: bool, two_channels: bool) -> str:
     lines = [
         "📢 <b>Telegramda bizga qo'shiling</b>",
         "",
@@ -72,9 +72,12 @@ def _telegram_prompt_html(*, need_channel: bool, need_group: bool) -> str:
         "━━━━━━━━━━━━━━━━",
     ]
     if need_channel:
-        lines.append("📢 <b>Telegram kanalimizga obuna bo'ling</b>")
-    if need_group:
-        lines.append("👥 <b>Telegram guruhimizga qo'shiling</b>")
+        if two_channels:
+            lines.append("📢 <b>1-Telegram kanalimizga obuna bo'ling</b>")
+        else:
+            lines.append("📢 <b>Telegram kanalimizga obuna bo'ling</b>")
+    if need_channel_2:
+        lines.append("📢 <b>2-Telegram kanalimizga obuna bo'ling</b>")
     lines.extend(
         [
             "━━━━━━━━━━━━━━━━",
@@ -132,7 +135,10 @@ async def _is_member_of(bot: Bot, chat_id: str, user_id: int) -> bool:
         return False
     try:
         m = await bot.get_chat_member(chat_id=cid, user_id=user_id)
-    except TelegramBadRequest as e:
+    except TelegramAPIError as e:
+        # Bot kanal/guruh admini bo'lmasa Telegram 403 (TelegramForbiddenError) qaytaradi,
+        # noto'g'ri chat_id da 400, flood/timeout da RetryAfter/NetworkError — barchasi
+        # TelegramAPIError. Handlerni qulatmaymiz: "a'zo emas" deb hisoblab, obuna so'rovini ko'rsatamiz.
         logger.warning("A'zolik tekshiruvi xatolik (%s): %s", cid, e)
         return False
     return m.status in _MEMBER_STATUSES
@@ -143,62 +149,71 @@ async def user_is_channel_member(bot: Bot, user_id: int) -> bool:
     return await _is_member_of(bot, settings.required_channel_id, user_id)
 
 
-async def user_is_group_member(bot: Bot, user_id: int) -> bool:
-    """Guruh majburiy emas bo'lsa — True (o'tkazib yuboriladi)."""
+async def user_is_channel_2_member(bot: Bot, user_id: int) -> bool:
+    """2-kanal majburiy emas bo'lsa — True (o'tkazib yuboriladi)."""
     settings = get_settings()
-    gid = (settings.required_group_id or "").strip()
-    if not gid:
+    cid = settings.channel_2_id
+    if not cid:
         return True
-    return await _is_member_of(bot, gid, user_id)
+    return await _is_member_of(bot, cid, user_id)
 
 
 async def _telegram_prompt_context(bot: Bot, uid: int) -> tuple[bool, bool, str | None, str | None]:
-    """(channel_ok, group_ok, channel_join_url, group_join_url)."""
-    from utils.channel_invite import get_required_channel_join_url, get_required_group_join_url
+    """(channel_ok, channel2_ok, channel_join_url, channel2_join_url)."""
+    from utils.channel_invite import get_required_channel_2_join_url, get_required_channel_join_url
 
     settings = get_settings()
     channel_ok = await user_is_channel_member(bot, uid)
-    group_required = bool((settings.required_group_id or "").strip())
-    group_ok = True if not group_required else await user_is_group_member(bot, uid)
+    channel2_required = bool(settings.channel_2_id)
+    channel2_ok = True if not channel2_required else await user_is_channel_2_member(bot, uid)
 
     channel_url: str | None = None
     if not channel_ok:
         try:
             channel_url = await get_required_channel_join_url(bot)
         except Exception as e:
-            logger.warning("Kanal taklif havolasi: %s", e)
+            logger.warning("1-kanal taklif havolasi: %s", e)
             ch = (settings.required_channel_id or "").strip()
             if ch.startswith("@"):
                 channel_url = f"https://t.me/{ch.lstrip('@')}"
 
-    group_url: str | None = None
-    if group_required and not group_ok:
+    channel2_url: str | None = None
+    if channel2_required and not channel2_ok:
         try:
-            group_url = await get_required_group_join_url(bot)
+            channel2_url = await get_required_channel_2_join_url(bot)
         except Exception as e:
-            logger.warning("Guruh taklif havolasi: %s", e)
+            logger.warning("2-kanal taklif havolasi: %s", e)
+            ch2 = settings.channel_2_id
+            if ch2.startswith("@"):
+                channel2_url = f"https://t.me/{ch2.lstrip('@')}"
 
-    return channel_ok, group_ok, channel_url, group_url
+    return channel_ok, channel2_ok, channel_url, channel2_url
 
 
 async def _send_telegram_subscribe_prompt(
     message_or_query: Message | CallbackQuery,
     *,
     channel_ok: bool,
-    group_ok: bool,
+    channel2_ok: bool,
     channel_url: str | None,
-    group_url: str | None,
+    channel2_url: str | None,
 ) -> None:
     need_channel = not channel_ok
-    need_group = not group_ok
-    if not need_channel and not need_group:
+    need_channel_2 = not channel2_ok
+    if not need_channel and not need_channel_2:
         return
-    text = _telegram_prompt_html(need_channel=need_channel, need_group=need_group)
+    two_channels = bool(get_settings().channel_2_id)
+    text = _telegram_prompt_html(
+        need_channel=need_channel,
+        need_channel_2=need_channel_2,
+        two_channels=two_channels,
+    )
     kb = telegram_subscribe_keyboard(
         channel_url=channel_url,
-        group_url=group_url,
+        channel_2_url=channel2_url,
         need_channel=need_channel,
-        need_group=need_group,
+        need_channel_2=need_channel_2,
+        two_channels=two_channels,
     )
     target = message_or_query.message if isinstance(message_or_query, CallbackQuery) else message_or_query
     if target is None:
@@ -280,8 +295,8 @@ async def cmd_start(
     if is_new_user:
         await message.answer(_start_welcome_html(message), parse_mode=ParseMode.HTML)
 
-    channel_ok, group_ok, channel_url, group_url = await _telegram_prompt_context(bot, uid)
-    telegram_ok = channel_ok and group_ok
+    channel_ok, channel2_ok, channel_url, channel2_url = await _telegram_prompt_context(bot, uid)
+    telegram_ok = channel_ok and channel2_ok
 
     if telegram_ok:
         await repo.set_user_flags(session, uid, channel_ok=True)
@@ -312,9 +327,9 @@ async def cmd_start(
     await _send_telegram_subscribe_prompt(
         message,
         channel_ok=channel_ok,
-        group_ok=group_ok,
+        channel2_ok=channel2_ok,
         channel_url=channel_url,
-        group_url=group_url,
+        channel2_url=channel2_url,
     )
 
 @router.callback_query(F.data == "sub:check")
@@ -327,13 +342,14 @@ async def callback_check_subscription(
     await query.answer()
     uid = query.from_user.id
 
-    channel_ok, group_ok, channel_url, group_url = await _telegram_prompt_context(bot, uid)
-    if not (channel_ok and group_ok):
+    channel_ok, channel2_ok, channel_url, channel2_url = await _telegram_prompt_context(bot, uid)
+    if not (channel_ok and channel2_ok):
+        two_channels = bool(get_settings().channel_2_id)
         missing_parts = []
         if not channel_ok:
-            missing_parts.append("📢 <b>Telegram kanal</b>")
-        if not group_ok:
-            missing_parts.append("👥 <b>Telegram guruh</b>")
+            missing_parts.append("📢 <b>1-Telegram kanal</b>" if two_channels else "📢 <b>Telegram kanal</b>")
+        if not channel2_ok:
+            missing_parts.append("📢 <b>2-Telegram kanal</b>")
         missing_html = " <i>va</i> ".join(missing_parts)
         if query.message:
             await query.message.answer(
@@ -346,9 +362,9 @@ async def callback_check_subscription(
         await _send_telegram_subscribe_prompt(
             query,
             channel_ok=channel_ok,
-            group_ok=group_ok,
+            channel2_ok=channel2_ok,
             channel_url=channel_url,
-            group_url=group_url,
+            channel2_url=channel2_url,
         )
         return
 

@@ -60,6 +60,32 @@ async def main() -> None:
 
     dp.startup.register(_preload_channel_invite)
 
+    async def _setup_results_menu_button(bot: Bot) -> None:
+        """Chap tarafdagi menyu tugmasini ommaviy natijalar mini-app sifatida o'rnatish (hamma uchun)."""
+        from aiogram.types import MenuButtonCommands, MenuButtonWebApp, WebAppInfo
+
+        base = (settings.web_admin_public_url or "").strip().rstrip("/")
+        if not base.startswith("https://"):
+            logger.warning(
+                "WEB_ADMIN_PUBLIC_URL HTTPS emas — natijalar menyu tugmasi o'rnatilmadi (%r).",
+                base or "(bo'sh)",
+            )
+            return
+        results_url = f"{base}/results"
+        try:
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(text="🏆 Natijalar", web_app=WebAppInfo(url=results_url)),
+            )
+            logger.info("Menyu tugmasi o'rnatildi: %s", results_url)
+        except Exception as e:  # noqa: BLE001 — startupni to'xtatmaymiz
+            logger.warning("Menyu tugmasini o'rnatib bo'lmadi: %s", e)
+            try:
+                await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+            except Exception:
+                pass
+
+    dp.startup.register(_setup_results_menu_button)
+
     logger.info("Bot ishga tushmoqda…")
     await dp.start_polling(bot)
 

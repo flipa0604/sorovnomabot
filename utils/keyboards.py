@@ -57,16 +57,18 @@ def channel_keyboard(join_url: str) -> InlineKeyboardMarkup:
 def telegram_subscribe_keyboard(
     *,
     channel_url: str | None,
-    group_url: str | None,
+    channel_2_url: str | None,
     need_channel: bool,
-    need_group: bool,
+    need_channel_2: bool,
+    two_channels: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Kanal va/yoki guruh uchun yagona obuna tugmalari + «tekshirish»."""
+    """1- va/yoki 2-Telegram kanal uchun yagona obuna tugmalari + «tekshirish»."""
     rows: list[list[InlineKeyboardButton]] = []
     if need_channel and channel_url:
-        rows.append([InlineKeyboardButton(text="📢 Telegram kanalga o'tish", url=_normalize_tme(channel_url))])
-    if need_group and group_url:
-        rows.append([InlineKeyboardButton(text="👥 Telegram guruhga o'tish", url=_normalize_tme(group_url))])
+        label = "📢 1-Telegram kanalga o'tish" if two_channels else "📢 Telegram kanalga o'tish"
+        rows.append([InlineKeyboardButton(text=label, url=_normalize_tme(channel_url))])
+    if need_channel_2 and channel_2_url:
+        rows.append([InlineKeyboardButton(text="📢 2-Telegram kanalga o'tish", url=_normalize_tme(channel_2_url))])
     rows.append([InlineKeyboardButton(text="✅ A'zolikni tekshirish", callback_data="sub:check")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

@@ -12,11 +12,15 @@ class Settings(BaseSettings):
     )
 
     bot_token: str = Field(default="", validation_alias="BOT_TOKEN")
+    # 1-majburiy Telegram kanal
     required_channel_id: str = Field(default="", validation_alias="REQUIRED_CHANNEL_ID")
-    # Qo'shimcha majburiy Telegram guruh (ixtiyoriy):
-    # REQUIRED_GROUP_ID — botni guruh admini qilinganidan keyin get_chat_member ishlashi uchun
+    # 2-majburiy Telegram kanal (ixtiyoriy):
+    # REQUIRED_CHANNEL_ID_2 — bot kanal admini qilinganidan keyin get_chat_member ishlashi uchun
     #   raqamli chat_id (masalan, -1001234567890) yoki @public_username.
-    # REQUIRED_GROUP_JOIN_URL — foydalanuvchiga ko'rsatiladigan taklif havolasi (masalan, https://t.me/+...).
+    # REQUIRED_CHANNEL_2_JOIN_URL — foydalanuvchiga ko'rsatiladigan taklif havolasi (masalan, https://t.me/+...).
+    required_channel_id_2: str = Field(default="", validation_alias="REQUIRED_CHANNEL_ID_2")
+    required_channel_2_join_url: str = Field(default="", validation_alias="REQUIRED_CHANNEL_2_JOIN_URL")
+    # Orqaga moslik: eski REQUIRED_GROUP_* sozlamalari endi 2-kanal sifatida ishlatiladi.
     required_group_id: str = Field(default="", validation_alias="REQUIRED_GROUP_ID")
     required_group_join_url: str = Field(default="", validation_alias="REQUIRED_GROUP_JOIN_URL")
     instagram_profile_url: str = Field(default="https://www.instagram.com/", validation_alias="INSTAGRAM_PROFILE_URL")
@@ -47,6 +51,19 @@ class Settings(BaseSettings):
         if not raw:
             return []
         return [int(x.strip()) for x in raw.split(",") if x.strip()]
+
+    @property
+    def channel_2_id(self) -> str:
+        """2-majburiy kanal chat_id/@username (yoki orqaga moslik uchun eski REQUIRED_GROUP_ID).
+
+        Bo'sh bo'lsa — 2-kanal majburiy emas (faqat 1-kanal tekshiriladi).
+        """
+        return (self.required_channel_id_2 or self.required_group_id or "").strip()
+
+    @property
+    def channel_2_join_url(self) -> str:
+        """2-kanal uchun .env dagi tayyor taklif havolasi (yoki eski REQUIRED_GROUP_JOIN_URL)."""
+        return (self.required_channel_2_join_url or self.required_group_join_url or "").strip()
 
     @property
     def is_sqlite(self) -> bool:

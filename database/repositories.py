@@ -238,6 +238,35 @@ async def count_votes_for_school(session: AsyncSession, school_id: int) -> int:
     return int(n or 0)
 
 
+async def public_results_bundle(session: AsyncSession) -> dict:
+    """Ommaviy natijalar mini-app uchun (faqat ko'rish): har bir maktab va uning ovozlari.
+
+    Maktablar ovozlar soni bo'yicha kamayish tartibida. Shaxsiy ma'lumotlar
+    (foydalanuvchilar, telefon raqamlar) bu yerda chiqmaydi — faqat yig'ma sonlar.
+    """
+    rows = await schools_with_vote_counts(session)  # [(School, count)] — ovoz bo'yicha desc
+    total_votes = sum(c for _, c in rows)
+    schools_with_votes = sum(1 for _, c in rows if c > 0)
+    districts = await list_districts(session)
+    schools = [
+        {
+            "id": s.id,
+            "name": s.school_name or "",
+            "district_id": s.district_id,
+            "district": (s.district.name if s.district else ""),
+            "votes": c,
+        }
+        for s, c in rows
+    ]
+    return {
+        "total_votes": int(total_votes),
+        "total_schools": len(schools),
+        "schools_with_votes": schools_with_votes,
+        "districts": [{"id": d.id, "name": d.name} for d in districts],
+        "schools": schools,
+    }
+
+
 async def create_district(session: AsyncSession, code: str, name: str, sort_order: int = 0) -> District:
     d = District(code=code.strip(), name=name.strip(), sort_order=sort_order)
     session.add(d)
