@@ -5,7 +5,32 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models import District, School, User, Vote
+from database.models import AppSetting, District, School, User, Vote
+
+VOTING_CLOSED_KEY = "voting_closed"
+
+
+async def get_setting(session: AsyncSession, key: str, default: str | None = None) -> str | None:
+    row = await session.get(AppSetting, key)
+    return row.value if row else default
+
+
+async def set_setting(session: AsyncSession, key: str, value: str) -> None:
+    row = await session.get(AppSetting, key)
+    if row:
+        row.value = value
+    else:
+        session.add(AppSetting(key=key, value=value))
+    await session.flush()
+
+
+async def is_voting_closed(session: AsyncSession) -> bool:
+    """Ovoz berish yopiqmi (admin /voting orqali boshqariladi; default — ochiq)."""
+    return (await get_setting(session, VOTING_CLOSED_KEY, "0")) == "1"
+
+
+async def set_voting_closed(session: AsyncSession, closed: bool) -> None:
+    await set_setting(session, VOTING_CLOSED_KEY, "1" if closed else "0")
 
 
 async def get_or_create_user(
@@ -262,6 +287,7 @@ async def public_results_bundle(session: AsyncSession) -> dict:
         "total_votes": int(total_votes),
         "total_schools": len(schools),
         "schools_with_votes": schools_with_votes,
+        "voting_closed": await is_voting_closed(session),
         "districts": [{"id": d.id, "name": d.name} for d in districts],
         "schools": schools,
     }

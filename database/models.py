@@ -65,3 +65,15 @@ class Vote(Base):
 
     user: Mapped["User"] = relationship(back_populates="vote")
     school: Mapped["School"] = relationship(back_populates="votes")
+
+
+class AppSetting(Base):
+    """Oddiy kalit-qiymat sozlamalari (masalan, ovoz berish yopiq/ochiq holati).
+
+    Restart qilinganda ham saqlanadi — bot va web-admin bir xil bazadan o'qiydi.
+    """
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255), default="")

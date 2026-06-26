@@ -3,9 +3,30 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 
 from database.models import District
+
+
+def results_webapp_keyboard(results_url: str) -> InlineKeyboardMarkup | None:
+    """«Natijalarni ko'rish» — mini-app tugmasi (shaxsiy chatda). URL bo'sh bo'lsa — None."""
+    if not results_url:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏆 Natijalarni ko'rish", web_app=WebAppInfo(url=results_url))]
+        ]
+    )
+
+
+def voting_admin_keyboard(closed: bool) -> InlineKeyboardMarkup:
+    """Admin uchun ovoz berishni to'xtatish/qayta ochish tugmasi."""
+    if closed:
+        btn = InlineKeyboardButton(text="🟢 Ovoz berishni qayta ochish", callback_data="votstate:open")
+    else:
+        btn = InlineKeyboardButton(text="🔴 Ovoz berishni to'xtatish", callback_data="votstate:close")
+    return InlineKeyboardMarkup(inline_keyboard=[[btn]])
 
 
 def contact_keyboard() -> ReplyKeyboardMarkup:

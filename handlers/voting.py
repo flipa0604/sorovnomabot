@@ -99,6 +99,9 @@ async def callback_vote_change_confirmed(
     state: FSMContext,
     bot: Bot,
 ) -> None:
+    if await repo.is_voting_closed(session):
+        await query.answer("🏁 Ovoz berish yakunlandi. Endi ovoz qabul qilinmaydi.", show_alert=True)
+        return
     raw = (query.data or "").split(":", 1)
     if len(raw) < 2:
         await query.answer()
@@ -154,6 +157,9 @@ async def callback_confirm_vote(
     state: FSMContext,
     bot: Bot,
 ) -> None:
+    if await repo.is_voting_closed(session):
+        await query.answer("🏁 Ovoz berish yakunlandi. Endi ovoz qabul qilinmaydi.", show_alert=True)
+        return
     raw = (query.data or "").split(":", 1)
     if len(raw) < 2:
         await query.answer()

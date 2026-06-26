@@ -4,14 +4,23 @@ import logging
 from datetime import datetime, timezone
 
 import pandas as pd
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
-from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 
 from config import get_settings
 from database import repositories as repo
 from filters.admin import AdminFilter
+from utils.keyboards import voting_admin_keyboard
 
 logger = logging.getLogger(__name__)
 router = Router(name="admin")
@@ -61,6 +70,8 @@ async def cmd_admin(message: Message) -> None:
         "• tumanlar va maktablar soni\n"
         "• har bir tuman bo'yicha: maktablar soni va shu tumanga tushgan ovozlar\n\n"
         "<b>/top</b> — ovozlar soni bo'yicha <b>TOP-10</b> maktablar (reyting).\n\n"
+        "<b>/voting</b> — ovoz berishni <b>to'xtatish/qayta ochish</b> "
+        "(yopilganda natijalar ochiq turadi).\n\n"
         "<b>/export</b> — barcha ovozlar Excel fayl ko'rinishida (pandas).\n\n"
         "<b>/admin</b> — ushbu yordam xabari."
     )
@@ -71,6 +82,44 @@ async def cmd_admin(message: Message) -> None:
             parse_mode=ParseMode.HTML,
             reply_markup=kb if i == 0 else None,
         )
+
+
+def _voting_status_html(closed: bool) -> str:
+    if closed:
+        return (
+            "🗳 <b>Ovoz berish holati:</b> 🔴 <b>YOPIQ</b>\n\n"
+            "<i>Yangi ovozlar qabul qilinmayapti. /start bosgan foydalanuvchilarga "
+            "«Ovoz berish yakunlandi» xabari ko'rsatiladi.</i>\n"
+            "🏆 <i>Natijalar mini-app hamma uchun ochiq turibdi.</i>"
+        )
+    return (
+        "🗳 <b>Ovoz berish holati:</b> 🟢 <b>OCHIQ</b>\n\n"
+        "<i>Ovoz berish davom etmoqda — foydalanuvchilar ovoz bera oladi.</i>"
+    )
+
+
+@router.message(Command("voting"), AdminFilter())
+async def cmd_voting(message: Message, session) -> None:
+    closed = await repo.is_voting_closed(session)
+    await message.answer(
+        _voting_status_html(closed),
+        reply_markup=voting_admin_keyboard(closed),
+        parse_mode=ParseMode.HTML,
+    )
+
+
+@router.callback_query(F.data.in_({"votstate:open", "votstate:close"}), AdminFilter())
+async def cb_voting_toggle(query: CallbackQuery, session) -> None:
+    closed = query.data == "votstate:close"
+    await repo.set_voting_closed(session, closed)
+    await query.answer("✅ Saqlandi")
+    text = _voting_status_html(closed)
+    kb = voting_admin_keyboard(closed)
+    if query.message:
+        try:
+            await query.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+        except TelegramBadRequest:
+            await query.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("stats"), AdminFilter())

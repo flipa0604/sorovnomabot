@@ -41,6 +41,7 @@
     .head p { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.85rem; }
     .head .note { margin-top: 0.5rem; display: inline-block; font-size: 0.72rem; color: var(--muted);
       background: var(--bg-elevated); border: 1px solid var(--border); padding: 0.22rem 0.6rem; border-radius: 999px; }
+    .head .note.closed { color: #f87171; background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.3); }
 
     .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 0.9rem; }
     .kpi {
@@ -93,6 +94,7 @@
     <h1>🏆 Eng yaxshi maktab</h1>
     <p>Buxoro viloyati maktablari reytingi</p>
     <span class="note">👁 Faqat ko'rish uchun</span>
+    <span class="note closed" id="closedBadge" style="display:none">🏁 So'rovnoma yakunlandi</span>
   </div>
 
   <div class="kpis">
@@ -205,6 +207,8 @@
         DATA = data;
         document.getElementById("kpiVotes").textContent = fmt(data.total_votes || 0);
         document.getElementById("kpiSchools").textContent = fmt(data.schools_with_votes || 0);
+        var cb = document.getElementById("closedBadge");
+        if (cb) cb.style.display = data.voting_closed ? "inline-block" : "none";
         fillDistricts();
         render();
         var now = new Date();

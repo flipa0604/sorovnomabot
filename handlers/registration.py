@@ -17,6 +17,7 @@ from utils.keyboards import (
     contact_keyboard,
     district_filter_keyboard,
     instagram_confirm_keyboard,
+    results_webapp_keyboard,
     telegram_subscribe_keyboard,
 )
 from utils.phone import normalize_phone
@@ -43,6 +44,17 @@ def _start_welcome_html(message: Message) -> str:
         "• 📷 <b>Instagram sahifamizga</b> <i>obuna bo'ling</i>\n\n"
         "✨ <i>Shundan so'ng ovoz berishingiz mumkin.</i>\n\n"
         "👇 <b>Quyidagi qadamlarni</b> bajaring — <i>biz yoningizdamiz!</i>"
+    )
+
+
+def _voting_closed_html() -> str:
+    """So'rovnoma yakunlangach /start bosganlarga ko'rsatiladigan xabar."""
+    return (
+        "🏁 <b>Ovoz berish yakunlandi</b>\n\n"
+        "🗳 <i>So'rovnoma yakuniga yetdi — endi yangi ovozlar qabul qilinmaydi.</i>\n\n"
+        "🙏 <b>Ishtirokingiz uchun rahmat!</b>\n\n"
+        "🏆 <i>Natijalarni quyidagi tugma yoki chap pastdagi</i> <b>menyu</b> "
+        "<i>orqali ko'rishingiz mumkin.</i>"
     )
 
 
@@ -281,6 +293,15 @@ async def cmd_start(
         message.from_user.username,
         message.from_user.full_name,
     )
+
+    if await repo.is_voting_closed(session):
+        await state.clear()
+        await message.answer(
+            _voting_closed_html(),
+            reply_markup=results_webapp_keyboard(get_settings().results_webapp_url),
+            parse_mode=ParseMode.HTML,
+        )
+        return
 
     school_id = parse_school_start_payload(command.args)
 

@@ -66,6 +66,14 @@ class Settings(BaseSettings):
         return (self.required_channel_2_join_url or self.required_group_join_url or "").strip()
 
     @property
+    def results_webapp_url(self) -> str:
+        """Ommaviy natijalar mini-app to'liq URL (HTTPS bo'lsa), aks holda bo'sh."""
+        base = (self.web_admin_public_url or "").strip().rstrip("/")
+        if base.startswith("https://"):
+            return f"{base}/results"
+        return ""
+
+    @property
     def is_sqlite(self) -> bool:
         return self.database_url.startswith("sqlite")
 
