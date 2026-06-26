@@ -2,7 +2,7 @@ import html
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.enums import ChatMemberStatus, ParseMode
+from aiogram.enums import ChatMemberStatus, ChatType, ParseMode
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandStart
 from aiogram.filters.command import CommandObject
@@ -47,14 +47,40 @@ def _start_welcome_html(message: Message) -> str:
     )
 
 
-def _voting_closed_html() -> str:
+def _voting_closed_html(*, mention_results: bool) -> str:
     """So'rovnoma yakunlangach /start bosganlarga ko'rsatiladigan xabar."""
-    return (
+    body = (
         "🏁 <b>Ovoz berish yakunlandi</b>\n\n"
         "🗳 <i>So'rovnoma yakuniga yetdi — endi yangi ovozlar qabul qilinmaydi.</i>\n\n"
-        "🙏 <b>Ishtirokingiz uchun rahmat!</b>\n\n"
-        "🏆 <i>Natijalarni quyidagi tugma yoki chap pastdagi</i> <b>menyu</b> "
-        "<i>orqali ko'rishingiz mumkin.</i>"
+        "🙏 <b>Ishtirokingiz uchun rahmat!</b>"
+    )
+    if mention_results:
+        body += (
+            "\n\n🏆 <i>Natijalarni chap pastdagi</i> <b>«Natijalar» menyusi</b> "
+            "<i>orqali ko'rishingiz mumkin.</i>"
+        )
+    return body
+
+
+def _is_private_chat(message: Message | None) -> bool:
+    return bool(message and message.chat and message.chat.type == ChatType.PRIVATE)
+
+
+async def _send_voting_closed(message: Message, *, reply_markup=None) -> None:
+    """Yopiq-holat ekranini yuborish.
+
+    Natijalar mini-app (menyu/tugma) faqat shaxsiy chatda va HTTPS sozlanganda mavjud —
+    shunga qarab matn va inline tugma moslanadi. ``reply_markup`` berilsa (masalan,
+    ReplyKeyboardRemove), inline natija tugmasi qo'shilmaydi.
+    """
+    url = get_settings().results_webapp_url
+    mention = bool(url) and _is_private_chat(message)
+    if reply_markup is None and mention:
+        reply_markup = results_webapp_keyboard(url)
+    await message.answer(
+        _voting_closed_html(mention_results=mention),
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -240,6 +266,10 @@ async def enter_voting_stage(
     telegram_id: int,
     bot: Bot,
 ) -> None:
+    if await repo.is_voting_closed(session):
+        await state.clear()
+        await _send_voting_closed(message)
+        return
     await repo.set_user_flags(session, telegram_id, channel_ok=True, instagram_ok=True)
     await state.set_state(Voting.active)
     await state.update_data(district_id=None)
@@ -296,11 +326,7 @@ async def cmd_start(
 
     if await repo.is_voting_closed(session):
         await state.clear()
-        await message.answer(
-            _voting_closed_html(),
-            reply_markup=results_webapp_keyboard(get_settings().results_webapp_url),
-            parse_mode=ParseMode.HTML,
-        )
+        await _send_voting_closed(message)
         return
 
     school_id = parse_school_start_payload(command.args)
@@ -363,6 +389,12 @@ async def callback_check_subscription(
     await query.answer()
     uid = query.from_user.id
 
+    if await repo.is_voting_closed(session):
+        await state.clear()
+        if query.message:
+            await _send_voting_closed(query.message)
+        return
+
     channel_ok, channel2_ok, channel_url, channel2_url = await _telegram_prompt_context(bot, uid)
     if not (channel_ok and channel2_ok):
         two_channels = bool(get_settings().channel_2_id)
@@ -407,6 +439,11 @@ async def callback_instagram(
 ) -> None:
     await query.answer()
     uid = query.from_user.id
+    if await repo.is_voting_closed(session):
+        await state.clear()
+        if query.message:
+            await _send_voting_closed(query.message)
+        return
     await repo.set_user_flags(session, uid, instagram_ok=True)
     await state.set_state(Registration.wait_phone)
     await query.message.answer(
@@ -423,6 +460,11 @@ async def on_contact(
     session,
     state: FSMContext,
 ) -> None:
+    if await repo.is_voting_closed(session):
+        await state.clear()
+        await _send_voting_closed(message, reply_markup=ReplyKeyboardRemove())
+        return
+
     contact: Contact = message.contact
     if contact.user_id is not None and contact.user_id != message.from_user.id:
         await message.answer(

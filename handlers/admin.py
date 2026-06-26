@@ -112,14 +112,19 @@ async def cmd_voting(message: Message, session) -> None:
 async def cb_voting_toggle(query: CallbackQuery, session) -> None:
     closed = query.data == "votstate:close"
     await repo.set_voting_closed(session, closed)
-    await query.answer("✅ Saqlandi")
-    text = _voting_status_html(closed)
-    kb = voting_admin_keyboard(closed)
-    if query.message:
-        try:
-            await query.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
-        except TelegramBadRequest:
-            await query.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    # UI yangilanishidagi xato bayroq yozuvini (middleware commit) rollback qilmasligi uchun
+    # barcha Telegram chaqiruvlarini yutamiz — holat baribir saqlanib qoladi.
+    try:
+        await query.answer("✅ Saqlandi")
+        text = _voting_status_html(closed)
+        kb = voting_admin_keyboard(closed)
+        if query.message:
+            try:
+                await query.message.edit_text(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+            except TelegramBadRequest:
+                await query.message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    except Exception as e:  # noqa: BLE001 — UI xatosi holat saqlanishiga ta'sir qilmasin
+        logger.warning("Voting toggle UI yangilanmadi: %s", e)
 
 
 @router.message(Command("stats"), AdminFilter())
